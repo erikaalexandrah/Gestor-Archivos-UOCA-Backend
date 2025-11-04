@@ -11,6 +11,7 @@ async function bootstrap() {
    app.enableCors({
     origin: [
       'https://gestor-archivos-uoca-backend.onrender.com',
+      'https://node-7s3gk9.erikahernandez.dev/'
     ],
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization'],
