@@ -81,8 +81,8 @@ export class DailyPatientsService {
   }
 
   // ✅ Listar todos los registros diarios
-  async findAll(): Promise<DailyPatient[]> {
-    return this.dailyModel
+  async findAll(): Promise<any[]> {
+    const records = await this.dailyModel
       .find()
       .populate({
         path: 'patient_id',
@@ -96,8 +96,20 @@ export class DailyPatientsService {
         path: 'item_id',
         select: 'cyclhos_name mapped_name category',
       })
+      .lean() // ⚠️ importante para poder manipular los datos
       .exec();
-  }
+
+  // 🧠 Mapeamos las fechas al formato español
+  return records.map((record) => ({
+    ...record,
+    appointment_date: new Date(record.appointment_date).toLocaleDateString('es-ES', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    }),
+  }));
+}
+
 
   // ✅ Buscar registros por FID del paciente
   async findOne(fid_number: string): Promise<DailyPatient[]> {
