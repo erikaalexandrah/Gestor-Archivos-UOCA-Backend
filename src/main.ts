@@ -12,16 +12,29 @@ async function bootstrap() {
    * 🌍 CORS Configuration
    * Compatible con desarrollo local, Render y tu dominio personalizado
    */
-  app.enableCors({
-    origin: [
-      'http://localhost:5173', // desarrollo (Vite/React)
-      'https://gestor-archivos-uoca-backend.onrender.com', // backend público en Render
-      'https://node-7s3gk9.erikahernandez.dev', // dominio personalizado
-    ],
+    app.enableCors({
+    origin: (origin, callback) => {
+      const allowedOrigins = [
+        'http://localhost:5173',
+        'https://gestor-archivos-uoca-backend.onrender.com',
+        'https://node-7s3gk9.erikahernandez.dev',
+      ];
+
+      // Permitir requests sin origin (por ejemplo desde Postman)
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        console.warn(`🚫 CORS bloqueado para origen: ${origin}`);
+        callback(new Error('No permitido por CORS'));
+      }
+    },
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization'],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  });
+    });
+
 
   app.setGlobalPrefix('api');
 
