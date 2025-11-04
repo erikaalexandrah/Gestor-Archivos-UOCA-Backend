@@ -8,47 +8,26 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
 
-  /**
-   * 🌍 CORS Configuration
-   * Compatible con desarrollo local, Render y tu dominio personalizado
-   */
-    app.enableCors({
-    origin: (origin, callback) => {
-      const allowedOrigins = [
-        'http://localhost:5173',
-        'https://gestor-archivos-uoca-backend.onrender.com',
-        'https://node-7s3gk9.erikahernandez.dev',
-      ];
-
-      // Permitir requests sin origin (por ejemplo desde Postman)
-      if (!origin) return callback(null, true);
-
-      if (allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        console.warn(`🚫 CORS bloqueado para origen: ${origin}`);
-        callback(new Error('No permitido por CORS'));
-      }
-    },
+   app.enableCors({
+    origin: [
+      'https://gestor-archivos-uoca-backend.onrender.com',
+    ],
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization'],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    });
-
+  });
 
   app.setGlobalPrefix('api');
 
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true, // elimina propiedades no esperadas
-      forbidNonWhitelisted: true, // lanza error si envían campos no definidos
-      transform: true, // convierte tipos (por ejemplo, strings a números)
+      whitelist: true, // elimina propiedades desconocidas
+      forbidNonWhitelisted: true, // lanza error si mandan campos no definidos
+      transform: true, // convierte tipos automáticamente
     }),
   );
 
-  /**
-   * 📘 Swagger Configuration
-   */
+  // Configuración Swagger
   const config = new DocumentBuilder()
     .setTitle('Gestor Médico UOCA')
     .setDescription('API para gestionar el manejo de archivos médicos en la UOCA 🏥')
@@ -57,9 +36,7 @@ async function bootstrap() {
     .addTag('patients', 'Gestión de pacientes')
     .addTag('items', 'Gestión de estudios o ítems')
     .addTag('daily-patients', 'Citas diarias de pacientes')
-    .addServer('https://gestor-archivos-uoca-backend.onrender.com', 'Render (Producción)')
-    .addServer('https://node-7s3gk9.erikahernandez.dev', 'Dominio Personal')
-    .addServer('http://localhost:3001', 'Local (Desarrollo)')
+    .addServer(process.env.BASE_URL || 'http://localhost:3001', 'Servidor activo') 
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
@@ -74,8 +51,6 @@ async function bootstrap() {
   const port = configService.get<number>('PORT') || 3001;
   await app.listen(port);
 
-  console.log(`🚀 Servidor corriendo en http://localhost:${port}/api`);
-  console.log(`📘 Documentación Swagger en /api/docs`);
 }
 
 bootstrap();
