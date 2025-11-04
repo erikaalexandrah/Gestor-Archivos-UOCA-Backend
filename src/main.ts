@@ -8,11 +8,8 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
 
-   app.enableCors({
-    origin: [
-      'https://gestor-archivos-uoca-backend.onrender.com',
-      'https://node-7s3gk9.erikahernandez.dev/'
-    ],
+  app.enableCors({
+    origin: true,
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization'],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
