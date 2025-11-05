@@ -16,71 +16,81 @@ export class DailyPatientsService {
     @InjectModel(Patient.name) private readonly patientModel: Model<Patient>,
     @InjectModel(Doctor.name) private readonly doctorModel: Model<Doctor>,
     @InjectModel(Item.name) private readonly itemModel: Model<Item>,
-    private readonly patientsService: PatientsService, // ✅ se inyecta para crear pacientes correctamente
+    private readonly patientsService: PatientsService,
   ) {}
 
+  // 🧠 Crear un registro diario
   async create(dto: CreateDailyPatientDto): Promise<DailyPatient> {
-    // 🧍 1️⃣ Verificar si el paciente existe por FID
+    // 🔎 1️⃣ Validar datos esenciales
+    if (!dto.patient?.fid_number || !dto.doctor?.cyclhos_name || !dto.study?.item) {
+      throw new NotFoundException('Datos incompletos en el DTO recibido');
+    }
+
+    // 👤 2️⃣ Buscar o crear paciente por fid_number
     let patient = await this.patientModel.findOne({ fid_number: dto.patient.fid_number }).exec();
 
     if (!patient) {
-      // Si no existe, crearlo correctamente usando PatientsService
-      // Primero crear con el servicio (puede devolver un tipo plain Patient)
+      console.log(`👤 Paciente nuevo detectado [FID: ${dto.patient.fid_number}] → creando...`);
+
       await this.patientsService.create({
         fid_number: dto.patient.fid_number,
         name: dto.patient.name,
         lastname: dto.patient.lastname,
         contact_info: {
-          email: dto.patient.email,
-          phone: dto.patient.phone,
+          email: dto.patient.email || '',
+          phone: dto.patient.phone || '',
         },
       } as any);
 
-      // Luego reconsultar el modelo Mongoose para obtener el Document con _id y métodos de mongoose
       patient = await this.patientModel.findOne({ fid_number: dto.patient.fid_number }).exec();
 
       if (!patient) {
-        throw new NotFoundException(
-          `Paciente con FID ${dto.patient.fid_number} no encontrado después de crearlo`,
-        );
+        throw new NotFoundException(`Paciente con FID ${dto.patient.fid_number} no encontrado después de crearlo`);
       }
     }
 
-    // 👩‍⚕️ 2️⃣ Buscar doctor por cyclhos_name
+    // 👩‍⚕️ 3️⃣ Buscar doctor de forma flexible
     const doctor = await this.doctorModel.findOne({
-      cyclhos_name: dto.doctor.cyclhos_name,
+      $or: [
+        { cyclhos_name: new RegExp(`^${dto.doctor.cyclhos_name}$`, 'i') },
+        { full_name: new RegExp(`^${dto.doctor.cyclhos_name}$`, 'i') },
+      ],
     }).exec();
 
-    if (!doctor)
-      throw new NotFoundException(
-        `Doctor con cyclhos_name "${dto.doctor.cyclhos_name}" no encontrado`,
-      );
+    if (!doctor) {
+      throw new NotFoundException(`Doctor con nombre "${dto.doctor.cyclhos_name}" no encontrado`);
+    }
 
-    // 🧪 3️⃣ Buscar item (estudio)
+    // 🧪 4️⃣ Buscar item (estudio) de forma flexible
     const item = await this.itemModel.findOne({
-      cyclhos_name: dto.study.item,
+      $or: [
+        { cyclhos_name: new RegExp(`^${dto.study.item}$`, 'i') },
+        { mapped_name: new RegExp(`^${dto.study.item}$`, 'i') },
+        { category: new RegExp(`^${dto.study.item}$`, 'i') },
+      ],
     }).exec();
 
-    if (!item)
+    if (!item) {
       throw new NotFoundException(`Estudio "${dto.study.item}" no encontrado`);
+    }
 
-    // 💾 4️⃣ Crear registro diario
+    // 💾 5️⃣ Crear registro diario con referencias reales
     const created = new this.dailyModel({
       appointment_date: dto.appointment_date,
       appointment_time: dto.appointment_time,
-      patient_id: patient._id, // ✅ usa _id real del documento paciente
-      doctor_id: doctor._id,   // ✅ usa _id real del documento doctor
-      item_id: item._id,       // ✅ usa _id real del documento item
+      patient_id: patient._id, // referencia al paciente
+      doctor_id: doctor._id,
+      item_id: item._id,
       completed: false,
       result_url: null,
       email_status: { sent: false, sent_time: null },
-      metadata: { source: dto.source || 'manual' },
+      metadata: { source: dto.source || 'excel' },
     });
 
     return created.save();
   }
 
-  // ✅ Listar todos los registros diarios
+  // 📋 Listar todos los registros
   async findAll(): Promise<any[]> {
     const records = await this.dailyModel
       .find()
@@ -96,23 +106,22 @@ export class DailyPatientsService {
         path: 'item_id',
         select: 'cyclhos_name mapped_name category',
       })
-      .lean() // ⚠️ importante para poder manipular los datos
+      .lean()
       .exec();
 
-  // 🧠 Mapeamos las fechas al formato español
-  return records.map((record) => ({
-    ...record,
-    appointment_date: new Date(record.appointment_date).toLocaleDateString('es-ES', {
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric',
-    }),
-  }));
-}
+    // 🧠 Formatear fecha en formato legible
+    return records.map((record) => ({
+      ...record,
+      appointment_date: new Date(record.appointment_date).toLocaleDateString('es-ES', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+      }),
+    }));
+  }
 
-
-  // ✅ Buscar registros por FID del paciente
-  async findOne(fid_number: string): Promise<DailyPatient[]> {
+  // 🔍 Buscar registros por FID
+  async findByFid(fid_number: string): Promise<DailyPatient[]> {
     const records = await this.dailyModel
       .find()
       .populate({
@@ -131,14 +140,12 @@ export class DailyPatientsService {
       .exec();
 
     const filtered = records.filter((r) => r.patient_id !== null);
-
     if (!filtered.length)
       throw new NotFoundException(`No se encontraron citas para el paciente con FID ${fid_number}`);
-
     return filtered;
   }
 
-  // ✅ Buscar un registro diario por su ID
+  // 🔍 Buscar registro por ID
   async findById(id: string): Promise<DailyPatient> {
     const record = await this.dailyModel
       .findById(id)
@@ -162,7 +169,7 @@ export class DailyPatientsService {
     return record;
   }
 
-  // ✅ Actualizar registro diario
+  // ✏️ Actualizar
   async update(id: string, dto: UpdateDailyPatientDto): Promise<DailyPatient> {
     const updated = await this.dailyModel.findByIdAndUpdate(id, dto, { new: true }).exec();
     if (!updated)
@@ -170,26 +177,20 @@ export class DailyPatientsService {
     return updated;
   }
 
-  // ✅ Eliminar registro diario por FID + item_name
+  // 🗑️ Eliminar por FID + item
   async remove(fid_number: string, item_name: string): Promise<DailyPatient> {
-    // 1️⃣ Buscar el paciente por FID
     const patient = await this.patientModel.findOne({ fid_number }).exec();
-    if (!patient) {
-      throw new NotFoundException(`Paciente con FID ${fid_number} no encontrado`);
-    }
+    if (!patient) throw new NotFoundException(`Paciente con FID ${fid_number} no encontrado`);
 
-    // 2️⃣ Buscar el item por nombre (puede ser cyclhos_name o mapped_name)
     const item = await this.itemModel
       .findOne({
         $or: [{ cyclhos_name: item_name }, { mapped_name: item_name }],
       })
       .exec();
 
-    if (!item) {
+    if (!item)
       throw new NotFoundException(`Estudio con nombre ${item_name} no encontrado`);
-    }
 
-    // 3️⃣ Eliminar el registro diario correspondiente
     const deleted = await this.dailyModel
       .findOneAndDelete({
         patient_id: patient._id,
@@ -197,22 +198,20 @@ export class DailyPatientsService {
       })
       .exec();
 
-    if (!deleted) {
+    if (!deleted)
       throw new NotFoundException(
         `No se encontró registro diario para FID ${fid_number} con el estudio ${item_name}`,
       );
-    }
 
     return deleted;
   }
 
-  // ✅ Crear múltiples registros diarios (batch)
+  // ⚡ Crear múltiples registros (batch)
   async createBatch(dtos: CreateDailyPatientDto[]): Promise<DailyPatient[]> {
     const results: DailyPatient[] = [];
 
     for (const dto of dtos) {
       try {
-        // Reutilizamos el método create existente para mantener la lógica de validación
         const created = await this.create(dto);
         results.push(created);
       } catch (error) {
@@ -222,5 +221,4 @@ export class DailyPatientsService {
 
     return results;
   }
-
 }

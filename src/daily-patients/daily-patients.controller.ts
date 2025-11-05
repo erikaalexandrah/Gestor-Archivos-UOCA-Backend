@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, ParseArrayPipe } from '@nestjs/common';
 import { DailyPatientsService } from './daily-patients.service';
 import { CreateDailyPatientDto } from './dto/create-daily-patient.dto';
 import { UpdateDailyPatientDto } from './dto/update-daily-patient.dto';
@@ -28,13 +28,17 @@ export class DailyPatientsController {
     return this.dailyPatientsService.create(createDailyPatientDto);
   }
   // ✅ Crear múltiples registros diarios de pacientes
-  @Post('batch')
-  @ApiOperation({
-    summary: 'Crear múltiples registros diarios de pacientes',
-    description:
-      'Permite crear varios registros diarios de pacientes en una sola solicitud. Cada elemento debe tener el mismo formato que CreateDailyPatientDto.',
-  })
-  createBatch(@Body() dtos: CreateDailyPatientDto[]) {
+ @Post('batch')
+  createBatch(
+    @Body(
+      new ParseArrayPipe({
+        items: CreateDailyPatientDto,
+        whitelist: true,
+        forbidNonWhitelisted: false,
+      }),
+    )
+    dtos: CreateDailyPatientDto[],
+  ) {
     return this.dailyPatientsService.createBatch(dtos);
   }
 

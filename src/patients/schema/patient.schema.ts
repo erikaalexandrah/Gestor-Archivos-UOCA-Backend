@@ -5,11 +5,8 @@ import { Document } from 'mongoose';
   timestamps: { createdAt: 'metadata.created_at', updatedAt: 'metadata.updated_at' },
 })
 export class Patient extends Document {
-  @Prop({ unique: true })
-  patient_id: string;
-
-  @Prop({ required: true })
-  fid_number: string;
+  @Prop({ required: true, unique: true })
+  fid_number: string; // Cédula (ID natural del paciente)
 
   @Prop({ required: true })
   name: string;
@@ -19,8 +16,8 @@ export class Patient extends Document {
 
   @Prop({
     type: {
-      email: { type: String },
-      phone: { type: String },
+      email: { type: String, default: '' },
+      phone: { type: String, default: '' },
     },
     required: true,
   })

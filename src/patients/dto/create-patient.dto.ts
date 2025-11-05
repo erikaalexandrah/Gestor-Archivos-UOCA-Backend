@@ -1,13 +1,18 @@
-import { IsString, IsEmail, IsNotEmpty, ValidateNested } from 'class-validator';
+import {
+  IsString,
+  IsEmail,
+  IsNotEmpty,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
-import { ApiProperty } from '@nestjs/swagger'; // 👈 Importa
+import { ApiProperty } from '@nestjs/swagger';
 
 class ContactInfoDto {
-  @ApiProperty({ example: 'juanperez@mail.com' })
+  @ApiProperty({ example: 'juanperez@mail.com', required: false })
   @IsEmail()
   email: string;
 
-  @ApiProperty({ example: '+58-412-1234567' })
+  @ApiProperty({ example: '+58-412-1234567', required: false })
   @IsString()
   phone: string;
 }

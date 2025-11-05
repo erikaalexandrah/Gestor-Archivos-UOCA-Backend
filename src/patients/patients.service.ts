@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Patient } from './schema/patient.schema';
@@ -7,48 +11,65 @@ import { UpdatePatientDto } from './dto/update-patient.dto';
 
 @Injectable()
 export class PatientsService {
-  constructor(@InjectModel(Patient.name) private readonly patientModel: Model<Patient>) {}
+  constructor(
+    @InjectModel(Patient.name) private readonly patientModel: Model<Patient>,
+  ) {}
 
-  private async generateNextPatientId(): Promise<string> {
-    const lastPatient = await this.patientModel.findOne().sort({ patient_id: -1 }).exec();
-    const lastId = lastPatient ? parseInt(lastPatient.patient_id, 10) : 0;
-    const nextId = (lastId + 1).toString().padStart(5, '0');
-    return nextId;
-  }
-
+  // 🧩 Crear paciente (usa fid_number como clave única)
   async create(createPatientDto: CreatePatientDto): Promise<Patient> {
-    const patient_id = await this.generateNextPatientId();
+    const existing = await this.patientModel
+      .findOne({ fid_number: createPatientDto.fid_number })
+      .exec();
+
+    if (existing) {
+      throw new ConflictException(
+        `Paciente con FID ${createPatientDto.fid_number} ya existe`,
+      );
+    }
 
     const createdPatient = new this.patientModel({
       ...createPatientDto,
-      patient_id,
       metadata: { created_by: 'system' },
     });
 
     return createdPatient.save();
   }
 
+  // 🧾 Listar todos los pacientes
   async findAll(): Promise<Patient[]> {
     return this.patientModel.find().exec();
   }
 
-  async findOne(id: string): Promise<Patient> {
-    const patient = await this.patientModel.findById(id).exec();
-    if (!patient) throw new NotFoundException(`Paciente con ID ${id} no encontrado`);
+  // 🔍 Buscar por fid_number
+  async findByFid(fid_number: string): Promise<Patient> {
+    const patient = await this.patientModel.findOne({ fid_number }).exec();
+    if (!patient)
+      throw new NotFoundException(`Paciente con FID ${fid_number} no encontrado`);
     return patient;
   }
 
-  async update(id: string, updatePatientDto: UpdatePatientDto): Promise<Patient> {
+  // ✏️ Actualizar paciente por fid_number
+  async updateByFid(
+    fid_number: string,
+    updatePatientDto: UpdatePatientDto,
+  ): Promise<Patient> {
     const patient = await this.patientModel
-      .findByIdAndUpdate(id, updatePatientDto, { new: true })
+      .findOneAndUpdate({ fid_number }, updatePatientDto, { new: true })
       .exec();
-    if (!patient) throw new NotFoundException(`Paciente con ID ${id} no encontrado`);
+
+    if (!patient)
+      throw new NotFoundException(`Paciente con FID ${fid_number} no encontrado`);
     return patient;
   }
 
-  async remove(id: string): Promise<Patient> {
-    const patient = await this.patientModel.findByIdAndDelete(id).exec();
-    if (!patient) throw new NotFoundException(`Paciente con ID ${id} no encontrado`);
+  // 🗑️ Eliminar paciente por fid_number
+  async removeByFid(fid_number: string): Promise<Patient> {
+    const patient = await this.patientModel
+      .findOneAndDelete({ fid_number })
+      .exec();
+
+    if (!patient)
+      throw new NotFoundException(`Paciente con FID ${fid_number} no encontrado`);
     return patient;
   }
 }

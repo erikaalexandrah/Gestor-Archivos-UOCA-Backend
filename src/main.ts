@@ -1,9 +1,18 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { ValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  app.useGlobalPipes(
+    new ValidationPipe({
+      transform: true,     // ← muy importante para @Type()
+      whitelist: true,     // elimina campos extra no declarados en el DTO
+      forbidNonWhitelisted: false, // si quieres que falle con 400 ante campos extra, pon true
+    }),
+  );
 
   // ✅ Prefijo global para todas las rutas
   app.setGlobalPrefix('api');
