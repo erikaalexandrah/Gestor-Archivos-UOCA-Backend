@@ -15,7 +15,7 @@ export class PatientsService {
     @InjectModel(Patient.name) private readonly patientModel: Model<Patient>,
   ) {}
 
-  // 🧩 Crear paciente (usa fid_number como clave única)
+  // 🧩 Crear paciente
   async create(createPatientDto: CreatePatientDto): Promise<Patient> {
     const existing = await this.patientModel
       .findOne({ fid_number: createPatientDto.fid_number })
@@ -35,7 +35,7 @@ export class PatientsService {
     return createdPatient.save();
   }
 
-  // 🧾 Listar todos los pacientes
+  // 🧾 Listar todos
   async findAll(): Promise<Patient[]> {
     return this.patientModel.find().exec();
   }
@@ -48,7 +48,15 @@ export class PatientsService {
     return patient;
   }
 
-  // ✏️ Actualizar paciente por fid_number
+  // ✅ NUEVO → Buscar por _id (lo que usa tu controlador)
+  async findOne(id: string): Promise<Patient> {
+    const patient = await this.patientModel.findById(id).exec();
+    if (!patient)
+      throw new NotFoundException(`Paciente con ID ${id} no encontrado`);
+    return patient;
+  }
+
+  // ✏️ Actualizar por fid_number
   async updateByFid(
     fid_number: string,
     updatePatientDto: UpdatePatientDto,
@@ -62,7 +70,19 @@ export class PatientsService {
     return patient;
   }
 
-  // 🗑️ Eliminar paciente por fid_number
+  // ✅ NUEVO → Actualizar por _id (lo que usa tu controlador)
+  async update(id: string, dto: UpdatePatientDto): Promise<Patient> {
+    const patient = await this.patientModel
+      .findByIdAndUpdate(id, dto, { new: true })
+      .exec();
+
+    if (!patient)
+      throw new NotFoundException(`Paciente con ID ${id} no encontrado`);
+
+    return patient;
+  }
+
+  // 🗑️ Eliminar por fid_number
   async removeByFid(fid_number: string): Promise<Patient> {
     const patient = await this.patientModel
       .findOneAndDelete({ fid_number })
@@ -70,6 +90,14 @@ export class PatientsService {
 
     if (!patient)
       throw new NotFoundException(`Paciente con FID ${fid_number} no encontrado`);
+    return patient;
+  }
+
+  // ✅ NUEVO → Eliminar por _id (lo que usa tu controlador)
+  async remove(id: string): Promise<Patient> {
+    const patient = await this.patientModel.findByIdAndDelete(id).exec();
+    if (!patient)
+      throw new NotFoundException(`Paciente con ID ${id} no encontrado`);
     return patient;
   }
 }

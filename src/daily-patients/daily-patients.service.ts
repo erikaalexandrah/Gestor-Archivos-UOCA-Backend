@@ -19,19 +19,14 @@ export class DailyPatientsService {
     private readonly patientsService: PatientsService,
   ) {}
 
-  // 🧠 Crear un registro diario
   async create(dto: CreateDailyPatientDto): Promise<DailyPatient> {
-    // 🔎 1️⃣ Validar datos esenciales
     if (!dto.patient?.fid_number || !dto.doctor?.cyclhos_name || !dto.study?.item) {
       throw new NotFoundException('Datos incompletos en el DTO recibido');
     }
 
-    // 👤 2️⃣ Buscar o crear paciente por fid_number
     let patient = await this.patientModel.findOne({ fid_number: dto.patient.fid_number }).exec();
 
     if (!patient) {
-      console.log(`👤 Paciente nuevo detectado [FID: ${dto.patient.fid_number}] → creando...`);
-
       await this.patientsService.create({
         fid_number: dto.patient.fid_number,
         name: dto.patient.name,
@@ -44,12 +39,9 @@ export class DailyPatientsService {
 
       patient = await this.patientModel.findOne({ fid_number: dto.patient.fid_number }).exec();
 
-      if (!patient) {
-        throw new NotFoundException(`Paciente con FID ${dto.patient.fid_number} no encontrado después de crearlo`);
-      }
+      if (!patient) throw new NotFoundException(`Paciente con FID ${dto.patient.fid_number} no encontrado después de crearlo`);
     }
 
-    // 👩‍⚕️ 3️⃣ Buscar doctor de forma flexible
     const doctor = await this.doctorModel.findOne({
       $or: [
         { cyclhos_name: new RegExp(`^${dto.doctor.cyclhos_name}$`, 'i') },
@@ -57,11 +49,8 @@ export class DailyPatientsService {
       ],
     }).exec();
 
-    if (!doctor) {
-      throw new NotFoundException(`Doctor con nombre "${dto.doctor.cyclhos_name}" no encontrado`);
-    }
+    if (!doctor) throw new NotFoundException(`Doctor con nombre "${dto.doctor.cyclhos_name}" no encontrado`);
 
-    // 🧪 4️⃣ Buscar item (estudio) de forma flexible
     const item = await this.itemModel.findOne({
       $or: [
         { cyclhos_name: new RegExp(`^${dto.study.item}$`, 'i') },
@@ -70,15 +59,12 @@ export class DailyPatientsService {
       ],
     }).exec();
 
-    if (!item) {
-      throw new NotFoundException(`Estudio "${dto.study.item}" no encontrado`);
-    }
+    if (!item) throw new NotFoundException(`Estudio "${dto.study.item}" no encontrado`);
 
-    // 💾 5️⃣ Crear registro diario con referencias reales
     const created = new this.dailyModel({
       appointment_date: dto.appointment_date,
       appointment_time: dto.appointment_time,
-      patient_id: patient._id, // referencia al paciente
+      patient_id: patient._id,
       doctor_id: doctor._id,
       item_id: item._id,
       completed: false,
@@ -90,26 +76,15 @@ export class DailyPatientsService {
     return created.save();
   }
 
-  // 📋 Listar todos los registros
   async findAll(): Promise<any[]> {
     const records = await this.dailyModel
       .find()
-      .populate({
-        path: 'patient_id',
-        select: 'fid_number name lastname contact_info',
-      })
-      .populate({
-        path: 'doctor_id',
-        select: 'full_name cyclhos_name',
-      })
-      .populate({
-        path: 'item_id',
-        select: 'cyclhos_name mapped_name category',
-      })
+      .populate('patient_id', 'fid_number name lastname contact_info')
+      .populate('doctor_id', 'full_name cyclhos_name')
+      .populate('item_id', 'cyclhos_name mapped_name category')
       .lean()
       .exec();
 
-    // 🧠 Formatear fecha en formato legible
     return records.map((record) => ({
       ...record,
       appointment_date: new Date(record.appointment_date).toLocaleDateString('es-ES', {
@@ -120,93 +95,54 @@ export class DailyPatientsService {
     }));
   }
 
-  // 🔍 Buscar registros por FID
   async findByFid(fid_number: string): Promise<DailyPatient[]> {
     const records = await this.dailyModel
       .find()
-      .populate({
-        path: 'patient_id',
-        match: { fid_number },
-        select: 'fid_number name lastname contact_info',
-      })
-      .populate({
-        path: 'doctor_id',
-        select: 'full_name cyclhos_name',
-      })
-      .populate({
-        path: 'item_id',
-        select: 'cyclhos_name mapped_name category',
-      })
+      .populate({ path: 'patient_id', match: { fid_number } })
+      .populate('doctor_id', 'full_name cyclhos_name')
+      .populate('item_id', 'cyclhos_name mapped_name category')
       .exec();
 
     const filtered = records.filter((r) => r.patient_id !== null);
-    if (!filtered.length)
-      throw new NotFoundException(`No se encontraron citas para el paciente con FID ${fid_number}`);
+    if (!filtered.length) throw new NotFoundException(`No se encontraron citas para FID ${fid_number}`);
     return filtered;
   }
 
-  // 🔍 Buscar registro por ID
+  async findOne(fid_number: string): Promise<DailyPatient[]> {
+    return this.findByFid(fid_number);
+  }
+
   async findById(id: string): Promise<DailyPatient> {
     const record = await this.dailyModel
       .findById(id)
-      .populate({
-        path: 'patient_id',
-        select: 'fid_number name lastname contact_info',
-      })
-      .populate({
-        path: 'doctor_id',
-        select: 'full_name cyclhos_name',
-      })
-      .populate({
-        path: 'item_id',
-        select: 'cyclhos_name mapped_name category',
-      })
+      .populate('patient_id', 'fid_number name lastname contact_info')
+      .populate('doctor_id', 'full_name cyclhos_name')
+      .populate('item_id', 'cyclhos_name mapped_name category')
       .exec();
 
-    if (!record)
-      throw new NotFoundException(`Registro diario con ID ${id} no encontrado`);
-
+    if (!record) throw new NotFoundException(`Registro diario con ID ${id} no encontrado`);
     return record;
   }
 
-  // ✏️ Actualizar
   async update(id: string, dto: UpdateDailyPatientDto): Promise<DailyPatient> {
     const updated = await this.dailyModel.findByIdAndUpdate(id, dto, { new: true }).exec();
-    if (!updated)
-      throw new NotFoundException(`Registro diario con ID ${id} no encontrado`);
+    if (!updated) throw new NotFoundException(`Registro diario con ID ${id} no encontrado`);
     return updated;
   }
 
-  // 🗑️ Eliminar por FID + item
   async remove(fid_number: string, item_name: string): Promise<DailyPatient> {
     const patient = await this.patientModel.findOne({ fid_number }).exec();
     if (!patient) throw new NotFoundException(`Paciente con FID ${fid_number} no encontrado`);
 
-    const item = await this.itemModel
-      .findOne({
-        $or: [{ cyclhos_name: item_name }, { mapped_name: item_name }],
-      })
-      .exec();
+    const item = await this.itemModel.findOne({ $or: [{ cyclhos_name: item_name }, { mapped_name: item_name }] }).exec();
+    if (!item) throw new NotFoundException(`Estudio ${item_name} no encontrado`);
 
-    if (!item)
-      throw new NotFoundException(`Estudio con nombre ${item_name} no encontrado`);
-
-    const deleted = await this.dailyModel
-      .findOneAndDelete({
-        patient_id: patient._id,
-        item_id: item._id,
-      })
-      .exec();
-
-    if (!deleted)
-      throw new NotFoundException(
-        `No se encontró registro diario para FID ${fid_number} con el estudio ${item_name}`,
-      );
+    const deleted = await this.dailyModel.findOneAndDelete({ patient_id: patient._id, item_id: item._id }).exec();
+    if (!deleted) throw new NotFoundException(`No se encontró registro para FID ${fid_number} con ${item_name}`);
 
     return deleted;
   }
 
-  // ⚡ Crear múltiples registros (batch)
   async createBatch(dtos: CreateDailyPatientDto[]): Promise<DailyPatient[]> {
     const results: DailyPatient[] = [];
 
@@ -215,7 +151,7 @@ export class DailyPatientsService {
         const created = await this.create(dto);
         results.push(created);
       } catch (error) {
-        console.error(`❌ Error creando registro para paciente FID ${dto.patient?.fid_number}:`, error.message);
+        console.error(`❌ Error creando registro para FID ${dto.patient?.fid_number}:`, error.message);
       }
     }
 

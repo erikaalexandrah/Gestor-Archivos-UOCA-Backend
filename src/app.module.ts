@@ -5,8 +5,7 @@ import { DoctorsModule } from './doctors/doctors.module';
 import { PatientsModule } from './patients/patients.module';
 import { ItemsModule } from './items/items.module';
 import { DailyPatientsModule } from './daily-patients/daily-patients.module';
-import { APP_FILTER, APP_PIPE } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -20,6 +19,7 @@ import { ValidationPipe } from '@nestjs/common';
     PatientsModule,
     ItemsModule,
     DailyPatientsModule,
+    AuthModule
   ],
 
 })

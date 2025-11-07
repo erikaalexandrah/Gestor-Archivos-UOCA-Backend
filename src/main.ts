@@ -60,7 +60,7 @@ async function bootstrap() {
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api', app, document);
+  SwaggerModule.setup('docs', app, document);
 
   // 🚀 Escucha en el puerto 3001 o el asignado por Render
   const port = process.env.PORT || 3001;
