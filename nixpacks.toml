@@ -1,4 +1,4 @@
-[phases.setup]
+][phases.setup]
 nixPkgs = ["bun"]
 
 [phases.install]
@@ -8,4 +8,4 @@ cmds = ["bun install"]
 cmds = ["bun run build"]
 
 [start]
-cmd = "node dist/main.js"
+cmd = "bun run start"
