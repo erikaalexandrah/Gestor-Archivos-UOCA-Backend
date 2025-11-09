@@ -8,5 +8,4 @@ cmds = ["bun install"]
 cmds = ["bun run build"]
 
 [start]
-cmd = "bun dist/main.js"
-
+cmd = "bun run start:prod"
