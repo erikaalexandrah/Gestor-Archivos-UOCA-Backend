@@ -4,6 +4,9 @@
   "description": "Backend NestJS para el Gestor de Archivos UOCA",
   "private": true,
   "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20 <21"
+  },
   "scripts": {
     "build": "nest build",
     "start": "node dist/main.js",
