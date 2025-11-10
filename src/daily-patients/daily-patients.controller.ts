@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, ParseArrayPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, ParseArrayPipe, HttpCode, HttpStatus, NotFoundException } from '@nestjs/common';
 import { DailyPatientsService } from './daily-patients.service';
 import { CreateDailyPatientDto } from './dto/create-daily-patient.dto';
 import { UpdateDailyPatientDto } from './dto/update-daily-patient.dto';
@@ -142,5 +142,23 @@ export class DailyPatientsController {
     @Param('item_name') item_name: string,
   ) {
     return this.dailyPatientsService.remove(fid_number, item_name);
+  }
+
+  @Delete('id/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Eliminar registro diario por ID',
+    description: 'Elimina un registro diario específico usando su ID MongoDB',
+  })
+  @ApiParam({ name: 'id', description: 'ID de MongoDB del registro diario', example: '69115851c86e2ab8fadc8b65' })
+  @ApiResponse({ status: 204, description: 'Registro eliminado correctamente' })
+  @ApiResponse({ status: 404, description: 'Registro no encontrado' })
+  async removeById(@Param('id') id: string): Promise<void> {
+    const result = await this.dailyPatientsService.removeById(id);
+    if (!result) {
+      // Aquí lanza un error 404 si no se encontró o eliminó
+      // Usa NotFoundException o lanzar una excepción personalizada
+      throw new NotFoundException(`Registro con id ${id} no encontrado`);
+    }
   }
 }

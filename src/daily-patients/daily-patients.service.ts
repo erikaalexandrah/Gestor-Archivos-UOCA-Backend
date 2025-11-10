@@ -165,17 +165,9 @@ export class DailyPatientsService {
     return updated;
   }
 
-  async remove(fid_number: string, item_name: string): Promise<DailyPatient> {
-    const patient = await this.patientModel.findOne({ fid_number }).exec();
-    if (!patient) throw new NotFoundException(`Paciente con FID ${fid_number} no encontrado`);
-
-    const item = await this.itemModel.findOne({ $or: [{ cyclhos_name: item_name }, { mapped_name: item_name }] }).exec();
-    if (!item) throw new NotFoundException(`Estudio ${item_name} no encontrado`);
-
-    const deleted = await this.dailyModel.findOneAndDelete({ patient_id: patient._id, item_id: item._id }).exec();
-    if (!deleted) throw new NotFoundException(`No se encontró registro para FID ${fid_number} con ${item_name}`);
-
-    return deleted;
+  async removeById(id: string): Promise<boolean> {
+    const res = await this.dailyModel.findByIdAndDelete(id).exec();
+    return !!res;
   }
 
   async createBatch(dtos: CreateDailyPatientDto[]): Promise<any> {
