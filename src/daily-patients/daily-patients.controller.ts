@@ -123,27 +123,6 @@ export class DailyPatientsController {
     return this.dailyPatientsService.update(id, updateDailyPatientDto);
   }
 
-  // ✅ Eliminar registro diario por FID e item_name
-  @Delete(':fid_number/:item_name')
-  @ApiOperation({
-    summary: 'Eliminar registro diario por FID y nombre del estudio',
-    description:
-      'Elimina un registro diario específico usando el número FID del paciente y el nombre del estudio asociado.',
-  })
-  @ApiParam({ name: 'fid_number', example: '12345678' })
-  @ApiParam({ name: 'item_name', example: 'TOPOGRAFÍA CORNEAL' })
-  @ApiResponse({
-    status: 200,
-    description: 'Registro diario eliminado correctamente',
-  })
-  @ApiResponse({ status: 404, description: 'Registro no encontrado' })
-  remove(
-    @Param('fid_number') fid_number: string,
-    @Param('item_name') item_name: string,
-  ) {
-    return this.dailyPatientsService.remove(fid_number, item_name);
-  }
-
   @Delete('id/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
