@@ -38,7 +38,6 @@ export class DailyPatientsService {
       } as any);
 
       patient = await this.patientModel.findOne({ fid_number: dto.patient.fid_number }).exec();
-
       if (!patient) throw new NotFoundException(`Paciente con FID ${dto.patient.fid_number} no encontrado después de crearlo`);
     }
 
@@ -60,6 +59,20 @@ export class DailyPatientsService {
     }).exec();
 
     if (!item) throw new NotFoundException(`Estudio "${dto.study.item}" no encontrado`);
+
+    // Verificar si ya existe el documento con la combinación única para evitar duplicados
+    const existing = await this.dailyModel.findOne({
+      patient_id: patient._id,
+      doctor_id: doctor._id,
+      item_id: item._id,
+      appointment_date: dto.appointment_date,
+      appointment_time: dto.appointment_time,
+    }).exec();
+
+    if (existing) {
+      // Retorna el documento existente sin crear uno nuevo
+      return existing;
+    }
 
     const created = new this.dailyModel({
       appointment_date: dto.appointment_date,
