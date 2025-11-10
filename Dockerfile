@@ -1,19 +1,20 @@
 # ---------- builder ----------
 FROM node:18-bullseye AS builder
 WORKDIR /app
+ENV PATH=/app/node_modules/.bin:$PATH
 
-# cache deps
+# copiar manifiestos para cache
 COPY package*.json ./
 COPY package-lock.json ./
 
-# usar legacy-peer-deps para evitar ERESOLVE (temporal)
-RUN npm ci --legacy-peer-deps
+# intentar npm ci (determinista). si falla, caer a npm install --legacy-peer-deps (temporal)
+RUN npm ci || npm install --legacy-peer-deps
 
-# copy source and build
+# copiar código y construir
 COPY . .
 RUN npm run build
 
-# remove dev deps
+# dejar solo dependencias de producción
 RUN npm prune --production
 
 # ---------- runner ----------
