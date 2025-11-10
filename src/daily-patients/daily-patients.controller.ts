@@ -28,8 +28,8 @@ export class DailyPatientsController {
     return this.dailyPatientsService.create(createDailyPatientDto);
   }
   // ✅ Crear múltiples registros diarios de pacientes
- @Post('batch')
-  createBatch(
+  @Post('batch')
+  async createBatch(
     @Body(
       new ParseArrayPipe({
         items: CreateDailyPatientDto,
@@ -39,8 +39,9 @@ export class DailyPatientsController {
     )
     dtos: CreateDailyPatientDto[],
   ) {
-    return this.dailyPatientsService.createBatch(dtos);
+    return await this.dailyPatientsService.createBatch(dtos);
   }
+
 
 
   // ✅ Listar todos los registros diarios con populate

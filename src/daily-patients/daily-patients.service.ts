@@ -156,18 +156,33 @@ export class DailyPatientsService {
     return deleted;
   }
 
-  async createBatch(dtos: CreateDailyPatientDto[]): Promise<DailyPatient[]> {
-    const results: DailyPatient[] = [];
+  async createBatch(dtos: CreateDailyPatientDto[]): Promise<any> {
+    const createdRecords = [];
+    const errors = [];
 
     for (const dto of dtos) {
       try {
         const created = await this.create(dto);
-        results.push(created);
+        createdRecords.push({
+          fid_number: dto.patient?.fid_number,
+          appointment_date: dto.appointment_date,
+          appointment_time: dto.appointment_time,
+          _id: created._id,
+        });
       } catch (error) {
-        console.error(`❌ Error creando registro para FID ${dto.patient?.fid_number}:`, error.message);
+        errors.push({
+          fid_number: dto.patient?.fid_number,
+          error: error.message || 'Error desconocido',
+        });
       }
     }
 
-    return results;
+    return {
+      createdCount: createdRecords.length,
+      errorsCount: errors.length,
+      createdRecords,
+      errors,
+    };
   }
+
 }
