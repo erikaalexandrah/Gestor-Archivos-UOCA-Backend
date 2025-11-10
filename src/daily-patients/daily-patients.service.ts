@@ -24,10 +24,12 @@ export class DailyPatientsService {
       throw new NotFoundException('Datos incompletos en el DTO recibido');
     }
 
+    // Buscar paciente por fid_number
     let patient = await this.patientModel.findOne({ fid_number: dto.patient.fid_number }).exec();
 
     if (!patient) {
-      await this.patientsService.create({
+      // Crear paciente y capturar el documento guardado
+      const patientCreated = await this.patientsService.create({
         fid_number: dto.patient.fid_number,
         name: dto.patient.name,
         lastname: dto.patient.lastname,
@@ -37,10 +39,21 @@ export class DailyPatientsService {
         },
       } as any);
 
-      patient = await this.patientModel.findOne({ fid_number: dto.patient.fid_number }).exec();
-      if (!patient) throw new NotFoundException(`Paciente con FID ${dto.patient.fid_number} no encontrado después de crearlo`);
+      // Usar lo que retorna create (si retorna el paciente), o volver a buscar
+      // patientCreated puede ser un documento de mongoose o un objeto plano; si tiene _id lo usamos, si no reconsultamos.
+      if (patientCreated && (patientCreated as any)._id) {
+        patient = patientCreated as any;
+      } else {
+        patient = await this.patientModel.findOne({ fid_number: dto.patient.fid_number }).exec();
+      }
+
+      // Validar existencia real y _id
+      if (!patient || !patient._id) {
+        throw new NotFoundException(`Paciente con FID ${dto.patient.fid_number} no encontrado después de crearlo`);
+      }
     }
 
+    // Buscar doctor
     const doctor = await this.doctorModel.findOne({
       $or: [
         { cyclhos_name: new RegExp(`^${dto.doctor.cyclhos_name}$`, 'i') },
@@ -50,6 +63,7 @@ export class DailyPatientsService {
 
     if (!doctor) throw new NotFoundException(`Doctor con nombre "${dto.doctor.cyclhos_name}" no encontrado`);
 
+    // Buscar item (estudio)
     const item = await this.itemModel.findOne({
       $or: [
         { cyclhos_name: new RegExp(`^${dto.study.item}$`, 'i') },
@@ -60,7 +74,7 @@ export class DailyPatientsService {
 
     if (!item) throw new NotFoundException(`Estudio "${dto.study.item}" no encontrado`);
 
-    // Verificar si ya existe el documento con la combinación única para evitar duplicados
+    // Verificar si ya existe la cita para evitar duplicados
     const existing = await this.dailyModel.findOne({
       patient_id: patient._id,
       doctor_id: doctor._id,
@@ -74,6 +88,7 @@ export class DailyPatientsService {
       return existing;
     }
 
+    // Crear el registro diario
     const created = new this.dailyModel({
       appointment_date: dto.appointment_date,
       appointment_time: dto.appointment_time,
@@ -88,6 +103,7 @@ export class DailyPatientsService {
 
     return created.save();
   }
+
 
   async findAll(): Promise<any[]> {
     const records = await this.dailyModel
