@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { DailyPatient } from './schema/daily-patient.schema';
@@ -28,26 +28,33 @@ export class DailyPatientsService {
     let patient = await this.patientModel.findOne({ fid_number: dto.patient.fid_number }).exec();
 
     if (!patient) {
-      // Crear paciente y capturar el documento guardado
-      const patientCreated = await this.patientsService.create({
-        fid_number: dto.patient.fid_number,
-        name: dto.patient.name,
-        lastname: dto.patient.lastname,
-        contact_info: {
-          email: dto.patient.email || '',
-          phone: dto.patient.phone || '',
-        },
-      } as any);
+      try {
+        // Intentar crear paciente
+        const patientCreated = await this.patientsService.create({
+          fid_number: dto.patient.fid_number,
+          name: dto.patient.name,
+          lastname: dto.patient.lastname,
+          contact_info: {
+            email: dto.patient.email || '',
+            phone: dto.patient.phone || '',
+          },
+        } as any);
 
-      // Usar lo que retorna create (si retorna el paciente), o volver a buscar
-      // patientCreated puede ser un documento de mongoose o un objeto plano; si tiene _id lo usamos, si no reconsultamos.
-      if (patientCreated && (patientCreated as any)._id) {
-        patient = patientCreated as any;
-      } else {
-        patient = await this.patientModel.findOne({ fid_number: dto.patient.fid_number }).exec();
+        // Usar el paciente creado o buscarlo de nuevo
+        patient = (patientCreated && (patientCreated as any)._id)
+          ? patientCreated as any
+          : await this.patientModel.findOne({ fid_number: dto.patient.fid_number }).exec();
+
+      } catch (error) {
+        // Si ya existe paciente (ConflictException), buscamos el existente
+        if (error instanceof ConflictException) {
+          patient = await this.patientModel.findOne({ fid_number: dto.patient.fid_number }).exec();
+        } else {
+          throw error; // Otros errores se lanzan normalmente
+        }
       }
 
-      // Validar existencia real y _id
+      // Validar que paciente exista y tenga _id válido
       if (!patient || !patient._id) {
         throw new NotFoundException(`Paciente con FID ${dto.patient.fid_number} no encontrado después de crearlo`);
       }
@@ -103,7 +110,6 @@ export class DailyPatientsService {
 
     return created.save();
   }
-
 
   async findAll(): Promise<any[]> {
     const records = await this.dailyModel
