@@ -4,6 +4,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { Patient } from 'src/patients/schema/patient.schema';
 import { Doctor } from 'src/doctors/schema/doctor.schema';
 import { Item } from 'src/items/schema/item.schema';
+import { User } from 'src/auth/schema/user.schema';
 
 @Schema({
   timestamps: { createdAt: 'metadata.created_at', updatedAt: 'metadata.updated_at' },
@@ -33,9 +34,12 @@ export class DailyPatient extends Document {
   @Prop({ default: false })
   completed: boolean;
 
-  @ApiProperty({ example: 'https://example.com/resultados/123', description: 'URL con los resultados del paciente' })
-  @Prop({ default: null })
-  result_url: string;
+  @ApiProperty({
+    example: ['\\\\servidor\\resultados\\paciente123.pdf', '\\\\servidor\\resultados\\paciente123_extra.pdf'],
+    description: 'Arreglo de rutas Windows donde se guardó el/los pdf(s)',
+  })
+  @Prop({ type: [String], default: [] })
+  result_url: string[];
 
   @ApiProperty({
     example: { sent: true, sent_time: '2025-10-29T14:00:00Z' },
@@ -50,8 +54,12 @@ export class DailyPatient extends Document {
   })
   email_status: {
     sent: boolean;
-    sent_time: Date;
+    sent_time: Date | null;
   };
+
+  @ApiProperty({ example: '60f7c0a1b3e2f7001a2b3c4d', description: 'ID del usuario que canceló este item (si aplica)' })
+  @Prop({ type: Types.ObjectId, ref: User.name, default: null })
+  cancelled_id?: Types.ObjectId | null;
 
   @ApiProperty({
     example: {

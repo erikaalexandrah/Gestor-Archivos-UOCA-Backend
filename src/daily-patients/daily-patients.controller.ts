@@ -27,6 +27,8 @@ export class DailyPatientsController {
   create(@Body() createDailyPatientDto: CreateDailyPatientDto) {
     return this.dailyPatientsService.create(createDailyPatientDto);
   }
+
+
   // ✅ Crear múltiples registros diarios de pacientes
   @Post('batch')
   async createBatch(
@@ -44,10 +46,10 @@ export class DailyPatientsController {
 
 
 
-  // ✅ Listar todos los registros diarios con populate
+  // ✅ Listar todos los registros diarios
   @Get()
   @ApiOperation({
-    summary: 'Listar todos los registros diarios (con populate)',
+    summary: 'Listar todos los registros diarios.',
     description:
       'Obtiene todos los registros diarios de pacientes, incluyendo información del paciente, doctor y estudio asociado.',
   })
@@ -63,6 +65,64 @@ export class DailyPatientsController {
   })
   findAll() {
   return this.dailyPatientsService.findAll();
+  }
+
+  // ✅ Resumen de pacientes para atenciones del día
+  @Get('summary')
+  @ApiOperation({
+    summary: 'Resumen de atenciones por paciente',
+    description:
+      'Devuelve nombre, apellido, cédula (fid_number), estatus (no enviado | pendiente por enviar | enviado) y una fecha representativa por paciente — agregado sobre todos los registros existentes en la colección.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Listado resumido por paciente',
+    schema: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          lastname: { type: 'string' },
+          fid_number: { type: 'string' },
+          status: {
+            type: 'string',
+            enum: ['no enviado', 'pendiente por enviar', 'enviado'],
+          },
+          appointment_date: { type: 'string', nullable: true },
+        },
+      },
+    },
+  })
+  async getSummary(): Promise<
+    Array<{
+      name: string;
+      lastname: string;
+      fid_number: string;
+      status: 'no enviado' | 'pendiente por enviar' | 'enviado';
+      appointment_date: string | null;
+    }>
+  > {
+    return this.dailyPatientsService.getSummarizedAll();
+  }
+
+ /**
+ * Resumen de un paciente por patientId
+ * GET /daily-patients/summary/:patientId
+ */
+  @Get('summary/:patientId')
+  @ApiOperation({
+    summary: 'Resumen de atenciones de un paciente',
+    description:
+      'Dado el patientId devuelve nombre, apellido, cédula, email, teléfono, items únicos (item_id + mapped_name) y doctors únicos (doctor_id + full_name) basados en los registros de dailyPatients.',
+  })
+  @ApiParam({ name: 'patientId', description: 'ID de MongoDB del paciente', example: '6512ab3c4d5e6f7a8b9c0d12' })
+  @ApiResponse({ status: 200, description: 'Resumen del paciente (ok)' })
+  @ApiResponse({ status: 404, description: 'Paciente no encontrado o sin atenciones' })
+  async getPatientSummary(
+    @Param('patientId') patientId: string,
+  ) {
+    return this.dailyPatientsService.getPatientSummaryById(patientId);
   }
 
   // ✅ Buscar por FID
