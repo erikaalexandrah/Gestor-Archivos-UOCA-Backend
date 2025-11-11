@@ -264,21 +264,29 @@ async getPatientSummaryById(patientId: string): Promise<{
   fid_number: string;
   email?: string | null;
   phone?: string | null;
-  items: Array<{ item_id: string; mapped_name?: string | null }>;
+  items: Array<{
+    item_id: string;
+    mapped_name?: string | null;
+    appointments: Array<{
+      daily_id: string;
+      appointment_date?: string | null;
+      appointment_time?: string | null;
+      doctor_id?: string | null;
+    }>;
+  }>;
   doctors: Array<{ doctor_id: string; full_name?: string | null }>;
   total_attentions: number;
 }> {
-  // Validar ObjectId
   if (!patientId || !Types.ObjectId.isValid(patientId)) {
     throw new NotFoundException('ID de paciente inválido');
   }
   const pid = new Types.ObjectId(patientId);
 
   const pipeline = [
-    // Filtrar por patient_id en dailyPatients
+    // 1) Filtrar sólo las atenciones de ese paciente
     { $match: { patient_id: pid } },
 
-    // Traer documento paciente
+    // 2) Traer el documento paciente (para datos personales)
     {
       $lookup: {
         from: 'patients',
@@ -289,46 +297,57 @@ async getPatientSummaryById(patientId: string): Promise<{
     },
     { $unwind: { path: '$patient', preserveNullAndEmptyArrays: false } },
 
-    // Agrupar por paciente para obtener conjuntos únicos de items y doctors
+    // 3) Agrupar por paciente acumulando:
+    //    - records: push de cada dailyPatient relevante (con daily _id, item_id, appointment_date/time, doctor_id)
+    //    - items_set: conjunto único de item_id
+    //    - doctors_set: conjunto único de doctor_id
     {
       $group: {
         _id: '$patient._id',
         fid_number: { $first: '$patient.fid_number' },
         name: { $first: '$patient.name' },
         lastname: { $first: '$patient.lastname' },
-
-        // intentar tomar email/phone del root o de contact_info (compatibilidad)
         email: { $first: { $ifNull: ['$patient.email', '$patient.contact_info.email'] } },
         phone: { $first: { $ifNull: ['$patient.phone', '$patient.contact_info.phone'] } },
 
-        items: { $addToSet: '$item_id' },
-        doctors: { $addToSet: '$doctor_id' },
+        records: {
+          $push: {
+            daily_id: '$_id',
+            item_id: '$item_id',
+            appointment_date: '$appointment_date',
+            appointment_time: '$appointment_time',
+            doctor_id: '$doctor_id',
+          },
+        },
+
+        items_set: { $addToSet: '$item_id' },
+        doctors_set: { $addToSet: '$doctor_id' },
 
         total_attentions: { $sum: 1 },
       },
     },
 
-    // Obtener info completa de items (mapped_name) para los item ids recogidos
+    // 4) Lookup para traer metadatos de items (mapped_name)
     {
       $lookup: {
         from: 'items',
-        localField: 'items',
+        localField: 'items_set',
         foreignField: '_id',
         as: 'items_info',
       },
     },
 
-    // Obtener info completa de doctors (full_name) para los doctor ids recogidos
+    // 5) Lookup para traer metadatos de doctors (full_name)
     {
       $lookup: {
         from: 'doctors',
-        localField: 'doctors',
+        localField: 'doctors_set',
         foreignField: '_id',
         as: 'doctors_info',
       },
     },
 
-    // Proyectar la respuesta en la forma deseada
+    // 6) Proyección: construir items con sus appointments (filtrando records por item)
     {
       $project: {
         _id: 0,
@@ -340,7 +359,7 @@ async getPatientSummaryById(patientId: string): Promise<{
         phone: 1,
         total_attentions: 1,
 
-        // mapear items_info a { item_id, mapped_name }
+        // items: por cada item_info crear objeto con appointments filtradas
         items: {
           $map: {
             input: '$items_info',
@@ -348,11 +367,37 @@ async getPatientSummaryById(patientId: string): Promise<{
             in: {
               item_id: { $toString: '$$it._id' },
               mapped_name: { $ifNull: ['$$it.mapped_name', '$$it.name', null] },
+
+              // appointments: filtrar records donde record.item_id == it._id
+              appointments: {
+                $map: {
+                  input: {
+                    $filter: {
+                      input: '$records',
+                      as: 'rec',
+                      cond: { $eq: ['$$rec.item_id', '$$it._id'] },
+                    },
+                  },
+                  as: 'r',
+                  in: {
+                    daily_id: { $toString: '$$r.daily_id' },
+                    appointment_date: { $ifNull: ['$$r.appointment_date', null] },
+                    appointment_time: { $ifNull: ['$$r.appointment_time', null] },
+                    doctor_id: {
+                      $cond: [
+                        { $ifNull: ['$$r.doctor_id', false] },
+                        { $toString: '$$r.doctor_id' },
+                        null,
+                      ],
+                    },
+                  },
+                },
+              },
             },
           },
         },
 
-        // mapear doctors_info a { doctor_id, full_name }
+        // doctors: mappear doctors_info
         doctors: {
           $map: {
             input: '$doctors_info',
@@ -387,6 +432,7 @@ async getPatientSummaryById(patientId: string): Promise<{
     total_attentions: r.total_attentions ?? 0,
   };
 }
+
 
   async findAll(): Promise<any[]> {
     const records = await this.dailyModel
