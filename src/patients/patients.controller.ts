@@ -27,6 +27,12 @@ export class PatientsController {
     return this.patientsService.findOne(id);
   }
 
+  @Get('fid/:fid')
+  @ApiOperation({ summary: 'Buscar paciente por FID' })
+  findByFid(@Param('fid') fid: string) {
+    return this.patientsService.findByFid(fid);
+  }
+  
   @Patch(':id')
   @ApiOperation({ summary: 'Actualizar paciente por ID' })
   update(@Param('id') id: string, @Body() updatePatientDto: UpdatePatientDto) {
