@@ -20,132 +20,183 @@ export class DailyPatientsService {
     private readonly patientsService: PatientsService,
   ) {}
 
-  async create(dto: CreateDailyPatientDto): Promise<DailyPatient> {
-    if (!dto.patient?.fid_number || !dto.doctor?.cyclhos_name || !dto.study?.item) {
-      throw new NotFoundException('Datos incompletos en el DTO recibido');
-    }
-
-    // Buscar paciente por fid_number
-    let patient = await this.patientModel.findOne({ fid_number: dto.patient.fid_number }).exec();
-
-    if (!patient) {
-      try {
-        // Intentar crear paciente usando PatientsService (manteniendo tu lógica)
-        const patientCreated = await this.patientsService.create({
-          fid_number: dto.patient.fid_number,
-          name: dto.patient.name,
-          lastname: dto.patient.lastname,
-          contact_info: {
-            email: dto.patient.email || '',
-            phone: dto.patient.phone || '',
-          },
-        } as any);
-
-        // Usar el paciente creado o buscarlo de nuevo
-        patient = (patientCreated && (patientCreated as any)._id)
-          ? (patientCreated as any)
-          : await this.patientModel.findOne({ fid_number: dto.patient.fid_number }).exec();
-
-      } catch (error) {
-        // Si ya existe paciente (ConflictException), buscamos el existente
-        if (error instanceof ConflictException) {
-          patient = await this.patientModel.findOne({ fid_number: dto.patient.fid_number }).exec();
-        } else {
-          throw error; // Otros errores se lanzan normalmente
-        }
-      }
-
-      // Validar que paciente exista y tenga _id válido
-      if (!patient || !patient._id) {
-        throw new NotFoundException(`Paciente con FID ${dto.patient.fid_number} no encontrado después de crearlo`);
-      }
-    }
-
-    // Buscar doctor
-    const doctor = await this.doctorModel.findOne({
-      $or: [
-        { cyclhos_name: new RegExp(`^${dto.doctor.cyclhos_name}$`, 'i') },
-        { full_name: new RegExp(`^${dto.doctor.cyclhos_name}$`, 'i') },
-      ],
-    }).exec();
-
-    if (!doctor) throw new NotFoundException(`Doctor con nombre "${dto.doctor.cyclhos_name}" no encontrado`);
-
-    // Buscar item (estudio)
-    const item = await this.itemModel.findOne({
-      $or: [
-        { cyclhos_name: new RegExp(`^${dto.study.item}$`, 'i') },
-        { mapped_name: new RegExp(`^${dto.study.item}$`, 'i') },
-        { category: new RegExp(`^${dto.study.item}$`, 'i') },
-      ],
-    }).exec();
-
-    if (!item) throw new NotFoundException(`Estudio "${dto.study.item}" no encontrado`);
-
-    // Verificar si ya existe la cita para evitar duplicados
-    const existing = await this.dailyModel.findOne({
-      patient_id: patient._id,
-      doctor_id: doctor._id,
-      item_id: item._id,
-      appointment_date: dto.appointment_date,
-      appointment_time: dto.appointment_time,
-    }).exec();
-
-    if (existing) {
-      // Retorna el documento existente sin crear uno nuevo
-      return existing;
-    }
-
-    // Crear el registro diario con los defaults definidos:
-    // - completed: false
-    // - result_url: arreglo vacío []
-    // - email_status: anidado { sent: false, sent_time: null }
-    // - cancelled_id: null (no se provee al crear)
-    const created = new this.dailyModel({
-      appointment_date: dto.appointment_date,
-      appointment_time: dto.appointment_time,
-      patient_id: patient._id,
-      doctor_id: doctor._id,
-      item_id: item._id,
-      completed: false,
-      result_url: [], // <-- cambiado a arreglo vacío por defecto
-      email_status: { sent: false, sent_time: null }, // <-- mantenido anidado
-      cancelled_id: null, // <-- por defecto
-      metadata: { source: dto.source || 'excel' },
-    });
-
-    return created.save();
+async create(dto: CreateDailyPatientDto): Promise<DailyPatient | DailyPatient[]> {
+  if (!dto.patient?.fid_number || !dto.doctor?.cyclhos_name || !dto.study?.item) {
+    throw new NotFoundException('Datos incompletos en el DTO recibido');
   }
 
-  async createBatch(dtos: CreateDailyPatientDto[]): Promise<any> {
-    const createdRecords = [];
-    const errors = [];
+  // Buscar paciente por fid_number
+  let patient = await this.patientModel.findOne({ fid_number: dto.patient.fid_number }).exec();
 
-    for (const dto of dtos) {
-      try {
-        const created = await this.create(dto);
+  if (!patient) {
+    try {
+      const patientCreated = await this.patientsService.create({
+        fid_number: dto.patient.fid_number,
+        name: dto.patient.name,
+        lastname: dto.patient.lastname,
+        contact_info: {
+          email: dto.patient.email || '',
+          phone: dto.patient.phone || '',
+        },
+      } as any);
+
+      patient = (patientCreated && (patientCreated as any)._id)
+        ? (patientCreated as any)
+        : await this.patientModel.findOne({ fid_number: dto.patient.fid_number }).exec();
+
+    } catch (error) {
+      if (error instanceof ConflictException) {
+        patient = await this.patientModel.findOne({ fid_number: dto.patient.fid_number }).exec();
+      } else {
+        throw error;
+      }
+    }
+
+    if (!patient || !patient._id) {
+      throw new NotFoundException(`Paciente con FID ${dto.patient.fid_number} no encontrado después de crearlo`);
+    }
+  }
+
+  // Buscar doctor
+  const doctor = await this.doctorModel.findOne({
+    $or: [
+      { cyclhos_name: new RegExp(`^${dto.doctor.cyclhos_name}$`, 'i') },
+      { full_name: new RegExp(`^${dto.doctor.cyclhos_name}$`, 'i') },
+    ],
+  }).exec();
+
+  if (!doctor) throw new NotFoundException(`Doctor con nombre "${dto.doctor.cyclhos_name}" no encontrado`);
+
+  // Buscar item (estudio) padre
+  const item = await this.itemModel.findOne({
+    $or: [
+      { cyclhos_name: new RegExp(`^${dto.study.item}$`, 'i') },
+      { mapped_name: new RegExp(`^${dto.study.item}$`, 'i') },
+      { category: new RegExp(`^${dto.study.item}$`, 'i') },
+    ],
+  }).exec();
+
+  if (!item) throw new NotFoundException(`Estudio "${dto.study.item}" no encontrado`);
+
+  // Si el item es combo (tiene pdf_type con elementos), crear una atención por cada subitem
+  if (Array.isArray(item.pdf_type) && item.pdf_type.length > 0) {
+    const createdOrExisting: DailyPatient[] = [];
+
+    // iterar cada id en pdf_type
+    for (const subIdRaw of item.pdf_type) {
+      const subId = subIdRaw instanceof Types.ObjectId ? subIdRaw : new Types.ObjectId(subIdRaw);
+      // obtener el subitem completo (por si queremos validar su existencia o category...)
+      const subItem = await this.itemModel.findById(subId).exec();
+      if (!subItem) {
+        throw new NotFoundException(`Subitem referenciado en pdf_type no encontrado: ${subId}`);
+      }
+
+      // Evitar duplicados: buscar si ya existe la atención para este subitem
+      const existing = await this.dailyModel.findOne({
+        patient_id: patient._id,
+        doctor_id: doctor._id,
+        item_id: subItem._id,
+        appointment_date: dto.appointment_date,
+        appointment_time: dto.appointment_time,
+      }).exec();
+
+      if (existing) {
+        createdOrExisting.push(existing);
+        continue;
+      }
+
+      // Crear nueva atención para el subitem
+      const created = new this.dailyModel({
+        appointment_date: dto.appointment_date,
+        appointment_time: dto.appointment_time,
+        patient_id: patient._id,
+        doctor_id: doctor._id,
+        item_id: subItem._id,
+        completed: false,
+        result_url: [],
+        email_status: { sent: false, sent_time: null },
+        cancelled_id: null,
+        metadata: { source: dto.source || 'excel' },
+      });
+
+      const saved = await created.save();
+      createdOrExisting.push(saved);
+    }
+
+    // retornamos el arreglo con los documentos (existentes o creados)
+    return createdOrExisting;
+  }
+
+  // Si no es combo, comportamiento normal (único item)
+  const existing = await this.dailyModel.findOne({
+    patient_id: patient._id,
+    doctor_id: doctor._id,
+    item_id: item._id,
+    appointment_date: dto.appointment_date,
+    appointment_time: dto.appointment_time,
+  }).exec();
+
+  if (existing) {
+    return existing;
+  }
+
+  const created = new this.dailyModel({
+    appointment_date: dto.appointment_date,
+    appointment_time: dto.appointment_time,
+    patient_id: patient._id,
+    doctor_id: doctor._id,
+    item_id: item._id,
+    completed: false,
+    result_url: [],
+    email_status: { sent: false, sent_time: null },
+    cancelled_id: null,
+    metadata: { source: dto.source || 'excel' },
+  });
+
+  return created.save();
+}
+
+async createBatch(dtos: CreateDailyPatientDto[]): Promise<any> {
+  const createdRecords = [];
+  const errors = [];
+
+  for (const dto of dtos) {
+    try {
+      const created = await this.create(dto);
+
+      // created puede ser un documento o un arreglo de documentos
+      if (Array.isArray(created)) {
+        for (const c of created) {
+          createdRecords.push({
+            fid_number: dto.patient?.fid_number,
+            appointment_date: dto.appointment_date,
+            appointment_time: dto.appointment_time,
+            _id: c._id,
+          });
+        }
+      } else {
         createdRecords.push({
           fid_number: dto.patient?.fid_number,
           appointment_date: dto.appointment_date,
           appointment_time: dto.appointment_time,
           _id: created._id,
         });
-      } catch (error) {
-        errors.push({
-          fid_number: dto.patient?.fid_number,
-          error: error.message || 'Error desconocido',
-        });
       }
+    } catch (error) {
+      errors.push({
+        fid_number: dto.patient?.fid_number,
+        error: error.message || 'Error desconocido',
+      });
     }
-
-    return {
-      createdCount: createdRecords.length,
-      errorsCount: errors.length,
-      createdRecords,
-      errors,
-    };
   }
 
+  return {
+    createdCount: createdRecords.length,
+    errorsCount: errors.length,
+    createdRecords,
+    errors,
+  };
+}
 // Devuelve resumen agregado de TODOS los registros actualmente en la colección.
 // Cada item: { name, lastname, fid_number, status, appointment_date }
 // Reglas de status:

@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import { Document, Types } from 'mongoose';
 
 export enum ItemCategory {
   INFORME = 'Informe',
@@ -37,6 +37,18 @@ export class Item extends Document {
   })
   category: ItemCategory;
 
+  // Nuevo: ruta/identificador de archivo (puede ser string vacío)
+  @Prop({ type: String, default: '' })
+  file: string;
+
+  // Nuevo: número de pdfs (se puede calcular desde pdf_type)
+  @Prop({ type: Number, default: 0 })
+  number_pdf: number;
+
+  // Nuevo: arreglo de ObjectId referenciando otros Items (subitems / combo)
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'Item' }], default: [] })
+  pdf_type: Types.ObjectId[];
+
   @Prop({
     type: {
       created_at: { type: Date },
@@ -54,11 +66,17 @@ export class Item extends Document {
 
 export const ItemSchema = SchemaFactory.createForClass(Item);
 
-// 🧠 Hook: autogenera mapped_name si no se envía manualmente
+// Hook: autogenera mapped_name si no se envía manualmente
 ItemSchema.pre<Item>('save', function (next) {
   if (!this.mapped_name && this.cyclhos_name) {
     const lower = this.cyclhos_name.toLowerCase();
     this.mapped_name = lower.charAt(0).toUpperCase() + lower.slice(1);
   }
+
+  // Si pdf_type está presente y number_pdf no fue seteado manualmente, lo calculamos
+  if ((this.isNew || this.isModified('pdf_type')) && (!this.number_pdf || this.number_pdf === 0)) {
+    this.number_pdf = Array.isArray(this.pdf_type) ? this.pdf_type.length : 0;
+  }
+
   next();
 });

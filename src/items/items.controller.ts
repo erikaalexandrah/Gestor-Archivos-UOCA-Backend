@@ -10,7 +10,6 @@ import { Item } from './schema/item.schema';
 export class ItemsController {
   constructor(private readonly itemsService: ItemsService) {}
 
-  // ✅ Crear un nuevo ítem
   @Post()
   @ApiOperation({
     summary: 'Crear un nuevo ítem',
@@ -25,7 +24,6 @@ export class ItemsController {
     return this.itemsService.create(createItemDto);
   }
 
-  // ✅ Obtener todos los ítems
   @Get()
   @ApiOperation({
     summary: 'Listar todos los ítems',
@@ -40,7 +38,6 @@ export class ItemsController {
     return this.itemsService.findAll();
   }
 
-  // ✅ Obtener un ítem por su ID
   @Get(':id')
   @ApiOperation({ summary: 'Obtener un ítem por ID' })
   @ApiParam({ name: 'id', example: '672271f37ad6eae780b43a99' })
@@ -53,7 +50,6 @@ export class ItemsController {
     return this.itemsService.findOne(id);
   }
 
-  // ✅ Actualizar un ítem por ID
   @Patch(':id')
   @ApiOperation({ summary: 'Actualizar un ítem por ID' })
   @ApiParam({ name: 'id', example: '672271f37ad6eae780b43a99' })
@@ -66,7 +62,6 @@ export class ItemsController {
     return this.itemsService.update(id, updateItemDto);
   }
 
-  // ✅ Eliminar un ítem por ID
   @Delete(':id')
   @ApiOperation({ summary: 'Eliminar un ítem por ID' })
   @ApiParam({ name: 'id', example: '672271f37ad6eae780b43a99' })
