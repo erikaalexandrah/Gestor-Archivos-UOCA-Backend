@@ -200,4 +200,9 @@ export class DailyPatientsController {
       throw new NotFoundException(`Registro con id ${id} no encontrado`);
     }
   }
+
+  @Get('summary/by-doctor/:doctorId')
+  async getSummaryByDoctor(@Param('doctorId') doctorId: string) {
+    return this.dailyPatientsService. getSummarizedByDoctor(doctorId);
+  }
 }
