@@ -7,6 +7,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as nodemailer from 'nodemailer';
 import { SendReportEmailDto } from './dto/send-report-email.dto';
+import { DailyPatientsService } from 'src/daily-patients/daily-patients.service';
 
 @Injectable()
 export class TechnicianService {
@@ -14,8 +15,9 @@ export class TechnicianService {
   private readonly transporter: nodemailer.Transporter;
   private readonly reportsBasePath: string;
 
-  constructor() {
-    // Base donde viven los informes (dev: carpeta en tu Mac, prod: carpeta compartida en la clínica)
+  constructor(
+    private readonly dailyPatientsService: DailyPatientsService, 
+  ) {
     this.reportsBasePath = process.env.REPORTS_BASE_PATH || '';
 
     if (!this.reportsBasePath) {
@@ -24,7 +26,6 @@ export class TechnicianService {
       );
     }
 
-    // Config SMTP usando process.env
     const host = process.env.SMTP_HOST;
     const port = Number(process.env.SMTP_PORT || 587);
     const secure = (process.env.SMTP_SECURE || 'false') === 'true';
@@ -47,7 +48,6 @@ export class TechnicianService {
 
   async sendReportEmail(dto: SendReportEmailDto): Promise<void> {
     try {
-      // Resolver rutas lógicas a paths reales y armar attachments
       const attachments = dto.reportPaths
         .map((relativePath) => {
           const fullPath = path.join(this.reportsBasePath, relativePath);
@@ -70,7 +70,6 @@ export class TechnicianService {
         );
       }
 
-      // Texto plano por si el cliente de correo no soporta HTML
       const plainText = dto.cuerpo.replace(/<[^>]+>/g, '');
 
       const fromAddress =
@@ -91,6 +90,12 @@ export class TechnicianService {
 
       this.logger.log(
         `Correo enviado a ${dto.email}. messageId=${info.messageId}`,
+      );
+
+      // 👇 ACTUALIZACIÓN DE DAILY-PATIENTS CON LOS IDS QUE VIENEN EN EL DTO
+      await this.dailyPatientsService.markAsEmailedAndMaybeComplete(
+        dto.attentionIds,
+        dto.reportPaths,
       );
     } catch (error) {
       this.logger.error('Error enviando correo', error.stack);

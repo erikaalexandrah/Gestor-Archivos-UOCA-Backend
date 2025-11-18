@@ -1,4 +1,3 @@
-export class CreateTechnicianDto {}
 import {
   ArrayNotEmpty,
   IsArray,
@@ -30,6 +29,14 @@ export class SendReportEmailDto {
 
   @IsString()
   cuerpo: string;
+
+  /**
+   * IDs de las atenciones (appointments/daily-patients) a actualizar tras el envío del correo.
+   */
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsString({ each: true })
+  attentionIds: string[];
 
   /**
    * Rutas lógicas/relativas de los informes a adjuntar.
