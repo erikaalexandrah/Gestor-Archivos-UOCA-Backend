@@ -660,10 +660,15 @@ export class DailyPatientsService {
     }
   }
 
-  /**
- * Resumen agregado SOLO para un doctor dado.
- * Agrupa por paciente, pero filtrando las atenciones donde doctor_id == doctorId.
- */
+   /**
+   * Resumen consolidado SOLO para un doctor dado.
+   * Agrupa por paciente:
+   *  - Info básica del paciente
+   *  - Todas las atenciones de ese doctor (appointments)
+   *  - Lista de estudios únicos (unique_item_names)
+   *  - Lista de URLs únicas (unique_result_urls)
+   *  - Status global (enviado / pendiente por enviar / no enviado)
+   */
   async getSummarizedByDoctor(
     doctorId: string,
   ): Promise<
@@ -674,6 +679,20 @@ export class DailyPatientsService {
       fid_number: string;
       status: 'no enviado' | 'pendiente por enviar' | 'enviado';
       appointment_date: string | null;
+      total_attentions: number;
+      unique_item_names: string[];
+      unique_result_urls: string[];
+      appointments: Array<{
+        daily_id: string;
+        appointment_date?: string | null;
+        appointment_time?: string | null;
+        item_id?: string | null;
+        item_name?: string | null;
+        completed: boolean;
+        email_sent: boolean;
+        email_sent_time?: Date | null;
+        result_url: string[];
+      }>;
     }>
   > {
     if (!doctorId || !Types.ObjectId.isValid(doctorId)) {
@@ -696,14 +715,27 @@ export class DailyPatientsService {
       },
       { $unwind: { path: '$patient', preserveNullAndEmptyArrays: false } },
 
-      // 2) Agrupar por paciente
+      // 2) Join con items para poder traer el nombre del estudio
+      {
+        $lookup: {
+          from: 'items',
+          localField: 'item_id',
+          foreignField: '_id',
+          as: 'item',
+        },
+      },
+      { $unwind: { path: '$item', preserveNullAndEmptyArrays: true } },
+
+      // 3) Agrupar por paciente
       {
         $group: {
           _id: '$patient._id',
-          appointment_date: { $first: '$appointment_date' },
+
           fid_number: { $first: '$patient.fid_number' },
           name: { $first: '$patient.name' },
           lastname: { $first: '$patient.lastname' },
+
+          firstAppointmentDate: { $first: '$appointment_date' },
 
           totalCount: { $sum: 1 },
 
@@ -730,10 +762,49 @@ export class DailyPatientsService {
               ],
             },
           },
+
+          // Todas las citas (appointments) de este doctor para este paciente
+          appointments: {
+            $push: {
+              daily_id: '$_id',
+              appointment_date: '$appointment_date',
+              appointment_time: '$appointment_time',
+              item_id: '$item._id',
+              item_name: {
+                $ifNull: [
+                  '$item.mapped_name',
+                  '$item.cyclhos_name',
+                  '$item.category',
+                  null,
+                ],
+              },
+              completed: '$completed',
+              email_sent: { $ifNull: ['$email_status.sent', false] },
+              email_sent_time: { $ifNull: ['$email_status.sent_time', null] },
+              result_url: { $ifNull: ['$result_url', []] },
+            },
+          },
+
+          // Set de estudios únicos
+          uniqueItemNames: {
+            $addToSet: {
+              $ifNull: [
+                '$item.mapped_name',
+                '$item.cyclhos_name',
+                '$item.category',
+                null,
+              ],
+            },
+          },
+
+          // Acumulamos todos los arrays de result_url para luego unirlos
+          allResultUrls: {
+            $push: { $ifNull: ['$result_url', []] },
+          },
         },
       },
 
-      // 3) Proyección final + cálculo de status
+      // 4) Proyección final + cálculo de status + setUnion de URLs
       {
         $project: {
           _id: 0,
@@ -741,15 +812,20 @@ export class DailyPatientsService {
           fid_number: 1,
           name: 1,
           lastname: 1,
-          appointment_date: 1,
+          appointment_date: '$firstAppointmentDate',
           totalCount: 1,
           completedCount: 1,
           hasResultCount: 1,
           sentCount: 1,
+          appointments: 1,
+
           status: {
             $switch: {
               branches: [
-                { case: { $eq: ['$completedCount', '$totalCount'] }, then: 'enviado' },
+                {
+                  case: { $eq: ['$completedCount', '$totalCount'] },
+                  then: 'enviado',
+                },
                 {
                   case: {
                     $and: [
@@ -763,6 +839,33 @@ export class DailyPatientsService {
               default: 'no enviado',
             },
           },
+
+          // filtramos itemNames nulos/vacíos
+          unique_item_names: {
+            $filter: {
+              input: '$uniqueItemNames',
+              as: 'nm',
+              cond: {
+                $and: [
+                  { $ne: ['$$nm', null] },
+                  { $ne: ['$$nm', ''] },
+                ],
+              },
+            },
+          },
+
+          // Flatten + dedupe de todas las URLs
+          unique_result_urls: {
+            $setUnion: {
+              $reduce: {
+                input: '$allResultUrls',
+                initialValue: [],
+                in: {
+                  $concatArrays: ['$$value', '$$this'],
+                },
+              },
+            },
+          },
         },
       },
     ];
@@ -774,8 +877,30 @@ export class DailyPatientsService {
       name: r.name ?? '',
       lastname: r.lastname ?? '',
       fid_number: r.fid_number ?? '',
-      status: (r.status as 'no enviado' | 'pendiente por enviar' | 'enviado') ?? 'no enviado',
+      status:
+        (r.status as 'no enviado' | 'pendiente por enviar' | 'enviado') ??
+        'no enviado',
       appointment_date: r.appointment_date ?? null,
+      total_attentions: r.totalCount ?? 0,
+      unique_item_names: Array.isArray(r.unique_item_names)
+        ? r.unique_item_names
+        : [],
+      unique_result_urls: Array.isArray(r.unique_result_urls)
+        ? r.unique_result_urls
+        : [],
+      appointments: Array.isArray(r.appointments)
+        ? r.appointments.map((a: any) => ({
+            daily_id: a.daily_id ? String(a.daily_id) : '',
+            appointment_date: a.appointment_date ?? null,
+            appointment_time: a.appointment_time ?? null,
+            item_id: a.item_id ? String(a.item_id) : null,
+            item_name: a.item_name ?? null,
+            completed: !!a.completed,
+            email_sent: !!a.email_sent,
+            email_sent_time: a.email_sent_time ?? null,
+            result_url: Array.isArray(a.result_url) ? a.result_url : [],
+          }))
+        : [],
     }));
   }
 }
