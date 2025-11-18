@@ -1,3 +1,4 @@
+// src/auth/auth.module.ts
 import { Module } from '@nestjs/common';
 import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
@@ -9,11 +10,14 @@ import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 
 import { User, UserSchema } from './schema/user.schema';
+import { Doctor, DoctorSchema } from 'src/doctors/schema/doctor.schema';
 
 @Module({
   imports: [
+    ConfigModule,
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },
+      { name: Doctor.name, schema: DoctorSchema }, 
     ]),
 
     PassportModule.register({ defaultStrategy: 'jwt' }),

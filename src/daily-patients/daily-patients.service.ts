@@ -659,4 +659,123 @@ export class DailyPatientsService {
       );
     }
   }
+
+  /**
+ * Resumen agregado SOLO para un doctor dado.
+ * Agrupa por paciente, pero filtrando las atenciones donde doctor_id == doctorId.
+ */
+  async getSummarizedByDoctor(
+    doctorId: string,
+  ): Promise<
+    Array<{
+      patient_id: string | null;
+      name: string;
+      lastname: string;
+      fid_number: string;
+      status: 'no enviado' | 'pendiente por enviar' | 'enviado';
+      appointment_date: string | null;
+    }>
+  > {
+    if (!doctorId || !Types.ObjectId.isValid(doctorId)) {
+      throw new NotFoundException('ID de doctor inválido');
+    }
+    const did = new Types.ObjectId(doctorId);
+
+    const pipeline = [
+      // 0) Solo atenciones de ese doctor
+      { $match: { doctor_id: did } },
+
+      // 1) Join con patients
+      {
+        $lookup: {
+          from: 'patients',
+          localField: 'patient_id',
+          foreignField: '_id',
+          as: 'patient',
+        },
+      },
+      { $unwind: { path: '$patient', preserveNullAndEmptyArrays: false } },
+
+      // 2) Agrupar por paciente
+      {
+        $group: {
+          _id: '$patient._id',
+          appointment_date: { $first: '$appointment_date' },
+          fid_number: { $first: '$patient.fid_number' },
+          name: { $first: '$patient.name' },
+          lastname: { $first: '$patient.lastname' },
+
+          totalCount: { $sum: 1 },
+
+          completedCount: {
+            $sum: { $cond: [{ $eq: ['$completed', true] }, 1, 0] },
+          },
+
+          hasResultCount: {
+            $sum: {
+              $cond: [
+                { $gt: [{ $size: { $ifNull: ['$result_url', []] } }, 0] },
+                1,
+                0,
+              ],
+            },
+          },
+
+          sentCount: {
+            $sum: {
+              $cond: [
+                { $eq: [{ $ifNull: ['$email_status.sent', false] }, true] },
+                1,
+                0,
+              ],
+            },
+          },
+        },
+      },
+
+      // 3) Proyección final + cálculo de status
+      {
+        $project: {
+          _id: 0,
+          patient_id: '$_id',
+          fid_number: 1,
+          name: 1,
+          lastname: 1,
+          appointment_date: 1,
+          totalCount: 1,
+          completedCount: 1,
+          hasResultCount: 1,
+          sentCount: 1,
+          status: {
+            $switch: {
+              branches: [
+                { case: { $eq: ['$completedCount', '$totalCount'] }, then: 'enviado' },
+                {
+                  case: {
+                    $and: [
+                      { $gt: ['$hasResultCount', 0] },
+                      { $lt: ['$sentCount', '$totalCount'] },
+                    ],
+                  },
+                  then: 'pendiente por enviar',
+                },
+              ],
+              default: 'no enviado',
+            },
+          },
+        },
+      },
+    ];
+
+    const results = await this.dailyModel.aggregate(pipeline).exec();
+
+    return results.map((r: any) => ({
+      patient_id: r.patient_id ? String(r.patient_id) : null,
+      name: r.name ?? '',
+      lastname: r.lastname ?? '',
+      fid_number: r.fid_number ?? '',
+      status: (r.status as 'no enviado' | 'pendiente por enviar' | 'enviado') ?? 'no enviado',
+      appointment_date: r.appointment_date ?? null,
+    }));
+  }
 }
