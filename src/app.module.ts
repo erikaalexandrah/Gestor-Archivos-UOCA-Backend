@@ -7,6 +7,7 @@ import { ItemsModule } from './items/items.module';
 import { DailyPatientsModule } from './daily-patients/daily-patients.module';
 import { AuthModule } from './auth/auth.module';
 import { TechnicianModule } from './technician/technician.module';
+import { ReportsModule } from './reports/reports.module';
 
 @Module({
   imports: [
@@ -21,7 +22,8 @@ import { TechnicianModule } from './technician/technician.module';
     ItemsModule,
     DailyPatientsModule,
     AuthModule,
-    TechnicianModule
+    TechnicianModule,
+    ReportsModule
   ],
 
 })
