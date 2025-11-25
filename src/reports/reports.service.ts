@@ -1,26 +1,25 @@
-import { Injectable } from '@nestjs/common';
-import { CreateReportDto } from './dto/create-report.dto';
-import { UpdateReportDto } from './dto/update-report.dto';
+// src/reports/reports.service.ts
+import { Injectable, NotFoundException } from '@nestjs/common';
+import * as fs from 'fs';
+import * as path from 'path';
 
 @Injectable()
 export class ReportsService {
-  create(createReportDto: CreateReportDto) {
-    return 'This action adds a new report';
-  }
+  private readonly basePath = process.env.REPORTS_BASE_PATH || '';
 
-  findAll() {
-    return `This action returns all reports`;
-  }
+  getFileFullPath(relPath: string): string {
+    if (!this.basePath) {
+      throw new NotFoundException('Ruta base no configurada');
+    }
 
-  findOne(id: number) {
-    return `This action returns a #${id} report`;
-  }
+    // Sanitizar
+    const cleanPath = relPath.replace(/\.\./g, '');
+    const fullPath = path.join(this.basePath, cleanPath);
 
-  update(id: number, updateReportDto: UpdateReportDto) {
-    return `This action updates a #${id} report`;
-  }
+    if (!fs.existsSync(fullPath)) {
+      throw new NotFoundException(`Archivo no encontrado: ${cleanPath}`);
+    }
 
-  remove(id: number) {
-    return `This action removes a #${id} report`;
+    return fullPath;
   }
 }

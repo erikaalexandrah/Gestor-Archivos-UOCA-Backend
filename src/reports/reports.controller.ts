@@ -2,11 +2,11 @@
 import {
   Controller,
   Get,
-  Param,
+  Req,
   Res,
   NotFoundException,
 } from '@nestjs/common';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -15,42 +15,40 @@ export class ReportsController {
   private readonly basePath: string;
 
   constructor() {
-    // Usa REPORTS_BASE_PATH del .env
     this.basePath = process.env.REPORTS_BASE_PATH || '';
-
     if (!this.basePath) {
-      console.warn(
-        '⚠️ REPORTS_BASE_PATH no está definido. /reports/* no podrá servir archivos.',
-      );
+      console.warn('⚠️ REPORTS_BASE_PATH no está definido.');
     }
   }
 
-  // ✅ Compatible con path-to-regexp nuevo:
-  // GET /api/reports/lo/que/sea.pdf  →  *path = "lo/que/sea.pdf"
-  @Get('*path')
-  async getReport(
-    @Param('path') pathParam: string,
-    @Res() res: Response,
-  ) {
+  /**
+   * Captura cualquier ruta después de /reports/**
+   * Ejemplo:
+   *   GET /reports/paciente/123/archivo.pdf
+   * req.params[0] → "paciente/123/archivo.pdf"
+   */
+  @Get('*')
+  async getReport(@Req() req: Request, @Res() res: Response) {
     if (!this.basePath) {
-      throw new NotFoundException('Ruta base de informes no configurada');
+      throw new NotFoundException('Ruta base no configurada');
     }
 
-    // pathParam viene con todo lo que sigue después de /reports/
-    // Puede venir con un / inicial, lo quitamos
-    const rel = String(pathParam || '').replace(/^\/+/, '');
+    // ⭐ req.params[0] es la parte capturada por *
+    const relPath = req.params[0];
 
-    // Sanitizar (evitar ../ y normalizar separadores)
-    const sanitized = rel.replace(/^\.+/, '').replace(/\\+/g, '/');
+    if (!relPath) {
+      throw new NotFoundException('Ruta no válida');
+    }
 
-    const fullPath = path.join(this.basePath, sanitized);
+    // Limpieza básica
+    const clean = relPath.replace(/\.\./g, '');
+
+    const fullPath = path.join(this.basePath, clean);
 
     if (!fs.existsSync(fullPath)) {
-      throw new NotFoundException(
-        `Archivo de informe no encontrado: ${sanitized}`,
-      );
+      throw new NotFoundException('Archivo no encontrado');
     }
 
-    return res.sendFile(fullPath);
+    return res.sendFile(fullPath, { root: '/' });
   }
 }
