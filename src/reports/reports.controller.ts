@@ -33,22 +33,32 @@ export class ReportsController {
       throw new NotFoundException('Ruta base no configurada');
     }
 
-    // ⭐ req.params[0] es la parte capturada por *
     const relPath = req.params[0];
-
     if (!relPath) {
       throw new NotFoundException('Ruta no válida');
     }
 
-    // Limpieza básica
-    const clean = relPath.replace(/\.\./g, '');
+    // Evitar traversal y rutas absolutas enviadas por el cliente
+    const cleanedRel = relPath.replace(/\0/g, '').replace(/\.\./g, '').replace(/^[\\/]+/, '');
 
-    const fullPath = path.join(this.basePath, clean);
+    // Normalizar y resolver absoluto con la base configurada
+    const baseResolved = path.resolve(this.basePath);
+    const fullPath = path.resolve(baseResolved, cleanedRel);
+
+    // Seguridad: asegurarse que fullPath está dentro de baseResolved
+    const baseForCheck = process.platform === 'win32' ? baseResolved.toLowerCase() : baseResolved;
+    const fullForCheck = process.platform === 'win32' ? fullPath.toLowerCase() : fullPath;
+    if (!fullForCheck.startsWith(baseForCheck + path.sep) && fullForCheck !== baseForCheck) {
+      throw new NotFoundException('Archivo no encontrado');
+    }
 
     if (!fs.existsSync(fullPath)) {
       throw new NotFoundException('Archivo no encontrado');
     }
 
-    return res.sendFile(fullPath, { root: '/' });
+    console.log('Sirviendo archivo desde:', fullPath);
+
+    // NO pasar { root: '/' } cuando se envía una ruta absoluta en Windows
+    return res.sendFile(fullPath);
   }
 }
