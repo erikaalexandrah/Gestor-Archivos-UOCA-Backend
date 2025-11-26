@@ -13,17 +13,29 @@ import { DailyPatientsService } from 'src/daily-patients/daily-patients.service'
 export class TechnicianService {
   private readonly logger = new Logger(TechnicianService.name);
   private readonly transporter: nodemailer.Transporter;
-  private readonly reportsBasePath: string;
+  private readonly reportsBasePaths: string[];
 
   constructor(
     private readonly dailyPatientsService: DailyPatientsService, 
   ) {
-    this.reportsBasePath = process.env.REPORTS_BASE_PATH || '';
+    const raw = process.env.REPORTS_BASE_PATH || '';
+    this.reportsBasePaths = raw
+      .split(/[;,|]/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((s) => {
+        if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+          s = s.slice(1, -1);
+        }
+        return path.normalize(s);
+      });
 
-    if (!this.reportsBasePath) {
+    if (this.reportsBasePaths.length === 0) {
       this.logger.warn(
         'REPORTS_BASE_PATH no está definido. No se podrán adjuntar informes.',
       );
+    } else {
+      this.logger.log(`REPORTS_BASE_PATHS=${JSON.stringify(this.reportsBasePaths)}`);
     }
 
     const host = process.env.SMTP_HOST;
@@ -46,14 +58,74 @@ export class TechnicianService {
     });
   }
 
+  private async existsAsync(p: string) {
+    try {
+      await fs.promises.access(p, fs.constants.F_OK);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private async findInSubdirs(root: string, targetName: string, maxDepth = 6, maxDirs = 2000) {
+    const queue: { dir: string; depth: number }[] = [{ dir: root, depth: 0 }];
+    let visitedDirs = 0;
+    while (queue.length) {
+      const { dir, depth } = queue.shift()!;
+      if (++visitedDirs > maxDirs) break;
+      let entries: fs.Dirent[];
+      try {
+        entries = await fs.promises.readdir(dir, { withFileTypes: true });
+      } catch {
+        continue;
+      }
+      for (const e of entries) {
+        const p = path.join(dir, e.name);
+        if (e.isFile() && e.name === targetName) return p;
+        if (e.isDirectory() && depth < maxDepth) queue.push({ dir: p, depth: depth + 1 });
+      }
+    }
+    return null;
+  }
+
+  // Busca el archivo relativo en todas las bases configuradas
+  private async findFileAcrossBases(relativePath: string) {
+    const cleanedRel = relativePath.replace(/\0/g, '').replace(/\.\./g, '').replace(/^[\\/]+/, '');
+    const filename = path.basename(cleanedRel);
+
+    for (const base of this.reportsBasePaths) {
+      const candidate = path.join(base, cleanedRel);
+
+      if (await this.existsAsync(candidate)) {
+        // seguridad: comprobar que candidate está dentro de base
+        const relative = path.relative(base, candidate);
+        if (!relative.startsWith('..') && !path.isAbsolute(relative)) {
+          return candidate;
+        }
+      }
+
+      // buscar en subcarpetas por nombre
+      const found = await this.findInSubdirs(base, filename);
+      if (found) {
+        const relativeFound = path.relative(base, found);
+        if (!relativeFound.startsWith('..') && !path.isAbsolute(relativeFound)) {
+          this.logger.log(`Archivo encontrado en base ${base}: ${found}`);
+          return found;
+        }
+      }
+    }
+
+    return null;
+  }
+
   async sendReportEmail(dto: SendReportEmailDto): Promise<void> {
     try {
-      const attachments = dto.reportPaths
-        .map((relativePath) => {
-          const fullPath = path.join(this.reportsBasePath, relativePath);
+      const attachments = await Promise.all(
+        (dto.reportPaths || []).map(async (relativePath) => {
+          const fullPath = await this.findFileAcrossBases(relativePath);
 
-          if (!fs.existsSync(fullPath)) {
-            this.logger.warn(`Archivo no encontrado: ${fullPath}`);
+          if (!fullPath) {
+            this.logger.warn(`Archivo no encontrado para '${relativePath}' en ninguna base.`);
             return null;
           }
 
@@ -61,8 +133,8 @@ export class TechnicianService {
             filename: path.basename(fullPath),
             path: fullPath,
           };
-        })
-        .filter((att) => att !== null) as { filename: string; path: string }[];
+        }),
+      ).then((arr) => arr.filter((a) => a !== null) as { filename: string; path: string }[]);
 
       if (attachments.length === 0) {
         this.logger.warn(
@@ -92,13 +164,12 @@ export class TechnicianService {
         `Correo enviado a ${dto.email}. messageId=${info.messageId}`,
       );
 
-      // 👇 ACTUALIZACIÓN DE DAILY-PATIENTS CON LOS IDS QUE VIENEN EN EL DTO
       await this.dailyPatientsService.markAsEmailedAndMaybeComplete(
         dto.attentionIds,
         dto.reportPaths,
       );
     } catch (error) {
-      this.logger.error('Error enviando correo', error.stack);
+      this.logger.error('Error enviando correo', (error as Error).stack);
       throw new InternalServerErrorException('Error enviando correo');
     }
   }
