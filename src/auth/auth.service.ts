@@ -11,6 +11,7 @@ import * as bcrypt from 'bcryptjs';
 import { User } from './schema/user.schema';
 import { CreateUserDto } from './dto/create-user.dto';
 import { Doctor } from 'src/doctors/schema/doctor.schema';
+import { UpdateUserDto } from './dto/update-auth.dto';
 
 @Injectable()
 export class AuthService {
@@ -26,7 +27,7 @@ export class AuthService {
 
   // Registro
   async create(dto: CreateUserDto) {
-    const { username, password, role } = dto;
+    const { username, password, role, filePath } = dto;
 
     const exists = await this.userModel.findOne({ username });
     if (exists) throw new BadRequestException('El usuario ya existe');
@@ -34,7 +35,8 @@ export class AuthService {
     const user = await this.userModel.create({
       username,
       password,
-      role: role || 'technician', // valor por defecto
+      role: role || 'technician',
+      filePath: role === 'doctor' ? filePath : null,  // ✅ SE AGREGA AQUÍ
     });
 
     const token = this.getJwtToken(user._id.toString());
@@ -81,45 +83,96 @@ export class AuthService {
    * - si role === 'doctor', busca el doctor cuyo doctors.username_id (o user_id) === users._id
    *   y agrega doctor_id (y opcionalmente más datos del doctor).
    */
-    private async buildUserPayload(userDoc: any) {
-    const plainUser =
-      typeof userDoc.toObject === 'function' ? userDoc.toObject() : { ...userDoc };
+  private async buildUserPayload(userDoc: any) {
+  const plainUser =
+    typeof userDoc.toObject === 'function' ? userDoc.toObject() : { ...userDoc };
 
-    delete plainUser.password;
+  delete plainUser.password;
 
-    if (plainUser.role !== 'doctor') {
-      return plainUser;
-    }
+  // Mantener filePath si existe
+  const filePath = plainUser.filePath ?? null;
 
-    const userIdObj = userDoc._id;
-    const userIdStr = String(userDoc._id);
-
-    console.log('[AUTH] Buscando doctor para user', userIdStr);
-
-    const doctor = await this.doctorModel
-      .findOne({
-        $or: [
-          { username_id: userIdObj }, 
-          { username_id: userIdStr }, 
-          { user_id: userIdObj },
-          { user_id: userIdStr },
-        ],
-      })
-      .select('_id full_name cyclhos_name')
-      .lean();
-
-    console.log('[AUTH] Doctor encontrado:', doctor);
-
-    if (doctor) {
-      return {
-        ...plainUser,
-        doctor_id: doctor._id.toString(),          
-        doctor_full_name: doctor.full_name ?? null,
-        doctor_cyclhos_name: doctor.cyclhos_name ?? null,
-      };
-    }
-
-    return plainUser;
+  // Si NO es doctor, devolver usuario normal
+  if (plainUser.role !== 'doctor') {
+    return { 
+      ...plainUser,
+      filePath  // <- se incluye siempre para el front, aunque sea null
+    };
   }
+
+  // Si ES doctor, buscar doctor_id y otros datos del doctor
+  const userIdObj = userDoc._id;
+  const userIdStr = String(userDoc._id);
+
+  const doctor = await this.doctorModel
+    .findOne({
+      $or: [
+        { username_id: userIdObj },
+        { username_id: userIdStr },
+        { user_id: userIdObj },
+        { user_id: userIdStr },
+      ],
+    })
+    .select('_id full_name cyclhos_name')
+    .lean();
+
+  if (doctor) {
+    return {
+      ...plainUser,
+      doctor_id: doctor._id.toString(),
+      doctor_full_name: doctor.full_name ?? null,
+      doctor_cyclhos_name: doctor.cyclhos_name ?? null,
+      filePath, // 🔥 ahora viene desde USER
+    };
+  }
+
+  return plainUser;
+}
+
+
+  // Nuevo método en AuthService
+async findAllUsers() {
+  const users = await this.userModel.find().lean();
+
+  const result = [];
+
+  for (const user of users) {
+    const payload = await this.buildUserPayload(user);
+    result.push(payload);
+  }
+
+  return result;
+}
+
+  async deleteUser(id: string) {
+    const user = await this.userModel.findById(id);
+
+    if (!user) {
+      throw new BadRequestException('Usuario no encontrado');
+    }
+
+    await this.userModel.findByIdAndDelete(id);
+
+    return { message: 'Usuario eliminado correctamente' };
+  }
+
+  async updateUser(id: string, dto: UpdateUserDto) {
+  const user = await this.userModel.findById(id).select("+password");
+  if (!user) throw new BadRequestException("Usuario no encontrado");
+
+  // Solo actualizamos los campos enviados
+  if (dto.username !== undefined) user.username = dto.username;
+  if (dto.role !== undefined) user.role = dto.role;
+  if (dto.filePath !== undefined) user.filePath = dto.filePath;
+
+  // SOLO si password fue enviada
+  if (dto.password !== undefined && dto.password.trim() !== "") {
+    user.password = dto.password; // El pre('save') la va a hashear 🔥
+  }
+
+  await user.save(); // AHORA sí se ejecuta el pre('save') correctamente
+
+  return this.buildUserPayload(user);
+}
 
 }

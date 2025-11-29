@@ -13,5 +13,10 @@ export class CreateUserDto {
   @IsIn(['admin', 'doctor', 'technician'], {
     message: 'role debe ser admin, doctor o technician',
   })
-  role?: string; // opcional (solo admin debería poder enviarlo)
+  role?: string;
+
+  // Solo si role === 'doctor'
+  @IsOptional()
+  @IsString()
+  filePath?: string;
 }

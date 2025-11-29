@@ -19,6 +19,9 @@ export class User extends Document {
 
   @Prop({ default: true })
   isActive: boolean;
+
+  @Prop({ type: String, required: false })
+  filePath?: string;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
