@@ -32,6 +32,6 @@ import { Doctor, DoctorSchema } from 'src/doctors/schema/doctor.schema';
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy],
-  exports: [JwtModule, PassportModule],
+  exports: [JwtModule, PassportModule, MongooseModule, AuthService],
 })
 export class AuthModule {}
