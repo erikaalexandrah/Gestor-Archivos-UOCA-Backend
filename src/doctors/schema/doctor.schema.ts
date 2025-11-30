@@ -42,6 +42,9 @@ export class Doctor extends Document {
     updated_at: Date;
     created_by: string;
   };
+
+  @Prop({ type: String, default: null })
+  username_id: string;
 }
 
 export const DoctorSchema = SchemaFactory.createForClass(Doctor);

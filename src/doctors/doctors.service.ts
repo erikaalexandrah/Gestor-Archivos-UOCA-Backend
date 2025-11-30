@@ -51,4 +51,17 @@ export class DoctorsService {
     if (!doctor) throw new NotFoundException(`Doctor con ID ${id} no encontrado`);
     return doctor;
   }
+
+  async assignUserToDoctor(doctorId: string, usernameId: string): Promise<Doctor> {
+  const doctor = await this.doctorModel.findById(doctorId).exec();
+
+  if (!doctor) {
+    throw new NotFoundException(`Doctor con ID ${doctorId} no encontrado`);
+  }
+
+  doctor.username_id = usernameId;
+
+  return doctor.save();
+}
+
 }

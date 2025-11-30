@@ -3,6 +3,7 @@ import { DoctorsService } from './doctors.service';
 import { CreateDoctorDto } from './dto/create-doctor.dto';
 import { UpdateDoctorDto } from './dto/update-doctor.dto';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { UpdateDoctorUsernameDto } from './dto/update-username.dto';
 
 @ApiTags('doctors') 
 @Controller('doctors')
@@ -37,5 +38,13 @@ export class DoctorsController {
   @ApiOperation({ summary: 'Eliminar un doctor por ID' })
   remove(@Param('id') id: string) {
     return this.doctorsService.remove(id);
+  }
+
+  @Patch(':id/assign-user')
+  assignUser(
+    @Param('id') id: string,
+    @Body() body: UpdateDoctorUsernameDto
+  ) {
+    return this.doctorsService.assignUserToDoctor(id, body.username_id);
   }
 }
