@@ -8,6 +8,7 @@ import { DailyPatientsModule } from './daily-patients/daily-patients.module';
 import { AuthModule } from './auth/auth.module';
 import { TechnicianModule } from './technician/technician.module';
 import { ReportsModule } from './reports/reports.module';
+import { HistoryAttentionsModule } from './history-attentions/history-attentions.module';
 
 @Module({
   imports: [
@@ -23,7 +24,8 @@ import { ReportsModule } from './reports/reports.module';
     DailyPatientsModule,
     AuthModule,
     TechnicianModule,
-    ReportsModule
+    ReportsModule,
+    HistoryAttentionsModule
   ],
 
 })
