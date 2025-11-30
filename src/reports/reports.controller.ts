@@ -89,6 +89,7 @@ export class ReportsController {
     });
   }
 
+
   // ============================================================
   // 🔎 BUSCAR TODOS LOS PDF QUE CONTENGAN LA CÉDULA
   // GET /reports/by-fid/:fid
@@ -192,6 +193,12 @@ export class ReportsController {
   // - MODO B: /reports?doctorFolder=X&fileName=Y
   // - MODO A: /reports/rel/path (PDFs globales)
   // ============================================================
+
+    @Get()
+  async getReportRoot(@Req() req: Request, @Res() res: Response) {
+    return this.getReport(req, res);
+  }
+  
   @Get('*')
   async getReport(@Req() req: Request, @Res() res: Response) {
     const { doctorFolder, fileName } = req.query as {
@@ -199,34 +206,35 @@ export class ReportsController {
       fileName?: string;
     };
 
-    // 🔵 MODO B — BUSCAR EN CARPETAS DE DOCTOR
-    if (doctorFolder && fileName) {
-      if (!this.doctorBasePath) {
-        throw new NotFoundException('DOCTORES_BASE_PATH no configurado');
-      }
+    console.log('🟣 getReport HIT =>', req.method, req.url);
+    console.log('📁 doctorFolder =', doctorFolder);
+    console.log('📄 fileName =', fileName);
 
-      console.log('📁 [Doctor Mode] doctorFolder =', doctorFolder);
-      console.log('📄 [Doctor Mode] fileName =', fileName);
+  console.log('🟣 getReport HIT =>', req.method, req.url);
+  console.log('📁 doctorFolder =', doctorFolder);
+  console.log('📄 fileName =', fileName);
 
-      const cleanedFolder = String(doctorFolder).replace(/\.\./g, '').trim();
-      const cleanedFile = String(fileName).replace(/\.\./g, '').trim();
+  if (doctorFolder && fileName) {
+    const cleanedFolder = String(doctorFolder).replace(/\.\./g, '').trim();
+    const cleanedFile = String(fileName).replace(/\.\./g, '').trim();
 
-      const fullPath = path.join(
-        this.doctorBasePath,
-        cleanedFolder,
-        cleanedFile,
-      );
+    const fullPath = path.join(
+      this.doctorBasePath,
+      cleanedFolder,
+      cleanedFile,
+    );
 
-      console.log('🔍 [Doctor Mode] Trying:', fullPath);
+    console.log('🔍 [Doctor Mode] Trying:', fullPath);
 
-      try {
-        await fs.promises.access(fullPath, fs.constants.F_OK);
-      } catch {
-        throw new NotFoundException('Archivo del doctor no encontrado');
-      }
-
-      return res.sendFile(fullPath);
+    try {
+      await fs.promises.access(fullPath, fs.constants.F_OK);
+    } catch (e) {
+      console.error('❌ access error:', e);
+      throw new NotFoundException('Archivo del doctor no encontrado');
     }
+
+    return res.sendFile(fullPath);
+  }
 
     // 🟢 MODO A — ORIGINAL (PDFs globales)
     if (this.basePaths.length === 0) {
