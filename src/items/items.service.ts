@@ -10,10 +10,9 @@ export class ItemsService {
   constructor(@InjectModel(Item.name) private readonly itemModel: Model<Item>) {}
 
   private async generateNextItemId(): Promise<string> {
-    const lastItem = await this.itemModel.findOne().sort({ item_id: -1 }).exec();
-    const lastId = lastItem ? parseInt(lastItem.item_id, 10) : 0;
-    const nextId = (lastId + 1).toString().padStart(3, '0');
-    return nextId;
+    const count = await this.itemModel.countDocuments().exec();
+    const next = count + 1;
+    return next.toString().padStart(4, '0'); // 0001, 0002, etc.
   }
 
   async create(createItemDto: CreateItemDto): Promise<Item> {
@@ -56,15 +55,52 @@ export class ItemsService {
     return newItem.save();
   }
 
+ private normalizeName(text: string = ""): string {
+    if (!text) return "";
+
+    // Solo considerar ALL CAPS si:
+    // 1) Solo hay letras (incluyendo acentos y Ñ), números, espacios y signos comunes
+    // 2) Es igual a su propia versión en mayúsculas locales
+    const allowed = /^[A-ZÁÉÍÓÚÜÑ0-9\s().\-]+$/u;
+    const isAllUpper =
+      allowed.test(text) && text === text.toLocaleUpperCase("es-ES");
+
+    // Si NO es ALL CAPS, se respeta tal cual viene de la BD
+    if (!isAllUpper) return text;
+
+    // Solo aquí pasamos de ALL CAPS → Title Case
+    return text
+      .toLocaleLowerCase("es-ES")
+      .split(/(\s+)/)
+      .map((word) => {
+        if (!word.trim()) return word;
+        return word.charAt(0).toLocaleUpperCase("es-ES") + word.slice(1);
+      })
+      .join("");
+  }
+
   async findAll(): Promise<Item[]> {
-    // populamos pdf_type para devolver los subitems si se desea
-    return this.itemModel.find().populate('pdf_type').exec();
+    const items = await this.itemModel.find().populate('pdf_type').exec();
+
+    return items.map((item) => {
+      const obj = item.toObject();
+
+      obj.mapped_name = this.normalizeName(obj.mapped_name);
+      obj.cyclhos_name = this.normalizeName(obj.cyclhos_name);
+
+      return obj;
+    });
   }
 
   async findOne(id: string): Promise<Item> {
     const item = await this.itemModel.findById(id).populate('pdf_type').exec();
     if (!item) throw new NotFoundException(`Item con ID ${id} no encontrado`);
-    return item;
+
+    const obj = item.toObject();
+    obj.mapped_name = this.normalizeName(obj.mapped_name);
+    obj.cyclhos_name = this.normalizeName(obj.cyclhos_name);
+
+    return obj;
   }
 
   async update(id: string, updateItemDto: UpdateItemDto): Promise<Item> {
