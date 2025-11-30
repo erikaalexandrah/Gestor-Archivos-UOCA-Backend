@@ -1,26 +1,43 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import { CreateHistoryAttentionDto } from './dto/create-history-attention.dto';
 import { UpdateHistoryAttentionDto } from './dto/update-history-attention.dto';
+import { HistoryAttention} from './entities/history-attention.schema';
 
 @Injectable()
 export class HistoryAttentionsService {
-  create(createHistoryAtttentionDto: CreateHistoryAttentionDto) {
-    return 'This action adds a new historyAtttention';
+  constructor(
+    @InjectModel(HistoryAttention.name)
+    private readonly historyModel: Model<HistoryAttention>,
+  ) {}
+
+  async create(createHistoryAttentionDto: CreateHistoryAttentionDto) {
+    const created = new this.historyModel(createHistoryAttentionDto);
+    return created.save();
   }
 
-  findAll() {
-    return `This action returns all historyAttentions`;
+  async findAll() {
+    return this.historyModel.find().exec();
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} historyAttention`;
+  async findOne(id: string) {
+    const doc = await this.historyModel.findById(id).exec();
+    if (!doc) throw new NotFoundException(`HistoryAttention ${id} no encontrado`);
+    return doc;
   }
 
-  update(id: number, updateHistoryAttentionDto: UpdateHistoryAttentionDto) {
-    return `This action updates a #${id} historyAttention`;
+  async update(id: string, updateHistoryAttentionDto: UpdateHistoryAttentionDto) {
+    const updated = await this.historyModel
+      .findByIdAndUpdate(id, updateHistoryAttentionDto, { new: true })
+      .exec();
+    if (!updated) throw new NotFoundException(`HistoryAttention ${id} no encontrado`);
+    return updated;
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} historyAttention`;
+  async remove(id: string) {
+    const deleted = await this.historyModel.findByIdAndDelete(id).exec();
+    if (!deleted) throw new NotFoundException(`HistoryAttention ${id} no encontrado`);
+    return true;
   }
 }

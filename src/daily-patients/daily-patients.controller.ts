@@ -205,4 +205,13 @@ export class DailyPatientsController {
   async getSummaryByDoctor(@Param('doctorId') doctorId: string) {
     return this.dailyPatientsService. getSummarizedByDoctor(doctorId);
   }
+  @Delete('patient/:patientId')
+  async removeByPatient(@Param('patientId') patientId: string) {
+    return this.dailyPatientsService.removeByPatientId(patientId);
+  }
+
+  @Post('flush-to-history')
+  async flushToHistory() {
+    return this.dailyPatientsService.flushToHistory();
+  }
 }

@@ -19,16 +19,16 @@ export class HistoryAttentionsController {
 
   @Get(':id')
   findOne(@Param('id') id: string) {
-    return this.historyAtttentionsService.findOne(+id);
+    return this.historyAtttentionsService.findOne(id);
   }
 
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateHistoryAtttentionDto: UpdateHistoryAttentionDto) {
-    return this.historyAtttentionsService.update(+id, updateHistoryAtttentionDto);
+    return this.historyAtttentionsService.update(id, updateHistoryAtttentionDto);
   }
 
   @Delete(':id')
   remove(@Param('id') id: string) {
-    return this.historyAtttentionsService.remove(+id);
+    return this.historyAtttentionsService.remove(id);
   }
 }

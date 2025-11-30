@@ -14,6 +14,8 @@ import { Patient } from 'src/patients/schema/patient.schema';
 import { Doctor } from 'src/doctors/schema/doctor.schema';
 import { Item } from 'src/items/schema/item.schema';
 import { PatientsService } from 'src/patients/patients.service';
+import { HistoryAttentionsService } from 'src/history-attentions/history-attentions.service';
+import { CreateHistoryAttentionDto } from 'src/history-attentions/dto/create-history-attention.dto';
 
 @Injectable()
 export class DailyPatientsService {
@@ -25,6 +27,8 @@ export class DailyPatientsService {
     @InjectModel(Doctor.name) private readonly doctorModel: Model<Doctor>,
     @InjectModel(Item.name) private readonly itemModel: Model<Item>,
     private readonly patientsService: PatientsService,
+    private readonly historyAttentionsService: HistoryAttentionsService,
+
   ) {}
 
   async create(dto: CreateDailyPatientDto): Promise<DailyPatient | DailyPatient[]> {
@@ -903,4 +907,62 @@ export class DailyPatientsService {
         : [],
     }));
   }
+
+  async removeByPatientId(patientId: string): Promise<{ deletedCount: number }> {
+    if (!patientId || !Types.ObjectId.isValid(patientId)) {
+      throw new NotFoundException('ID de paciente inválido');
+    }
+
+    const pid = new Types.ObjectId(patientId);
+
+    const res = await this.dailyModel.deleteMany({ patient_id: pid }).exec();
+    // res.deletedCount es el número real borrado
+    return { deletedCount: res.deletedCount ?? 0 };
+  }
+
+
+  async flushToHistory(): Promise<{ flushedCount: number }> {
+    const dailyPatientsToFlush = await this.dailyModel.find({
+      result_url: { $exists: true, $not: { $size: 0 } },
+    }).exec();
+
+    let flushedCount = 0;
+
+    for (const dailyPatient of dailyPatientsToFlush) {
+      const historyDto: CreateHistoryAttentionDto = {
+        appointment_date: dailyPatient.appointment_date,
+        appointment_time: dailyPatient.appointment_time,
+        patient_id: dailyPatient.patient_id.toString(),
+        doctor_id: dailyPatient.doctor_id.toString(),
+        item_id: dailyPatient.item_id.toString(),
+        completed: dailyPatient.completed,
+        result_url: dailyPatient.result_url,
+        email_status: {
+          sent: dailyPatient.email_status?.sent ?? false,
+          sent_time: dailyPatient.email_status?.sent_time
+            ? dailyPatient.email_status.sent_time.toISOString()
+            : undefined,
+        },
+        cancelled_id: dailyPatient.cancelled_id
+          ? dailyPatient.cancelled_id.toString()
+          : undefined,
+        metadata: {
+          source: dailyPatient.metadata?.source ?? 'excel',
+          created_at: dailyPatient.metadata?.created_at
+            ? dailyPatient.metadata.created_at.toISOString()
+            : undefined,
+          updated_at: dailyPatient.metadata?.updated_at
+            ? dailyPatient.metadata.updated_at.toISOString()
+            : undefined,
+        },
+      };
+
+      await this.historyAttentionsService.create(historyDto);
+      await this.dailyModel.findByIdAndDelete(dailyPatient._id).exec();
+      flushedCount++;
+    }
+
+    return { flushedCount };
+  }
+
 }

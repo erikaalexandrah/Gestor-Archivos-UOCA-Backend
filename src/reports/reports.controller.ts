@@ -198,21 +198,13 @@ export class ReportsController {
   async getReportRoot(@Req() req: Request, @Res() res: Response) {
     return this.getReport(req, res);
   }
-  
+
   @Get('*')
   async getReport(@Req() req: Request, @Res() res: Response) {
     const { doctorFolder, fileName } = req.query as {
       doctorFolder?: string;
       fileName?: string;
     };
-
-    console.log('🟣 getReport HIT =>', req.method, req.url);
-    console.log('📁 doctorFolder =', doctorFolder);
-    console.log('📄 fileName =', fileName);
-
-  console.log('🟣 getReport HIT =>', req.method, req.url);
-  console.log('📁 doctorFolder =', doctorFolder);
-  console.log('📄 fileName =', fileName);
 
   if (doctorFolder && fileName) {
     const cleanedFolder = String(doctorFolder).replace(/\.\./g, '').trim();

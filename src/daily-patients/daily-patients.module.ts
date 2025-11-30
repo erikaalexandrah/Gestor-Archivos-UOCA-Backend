@@ -6,6 +6,7 @@ import { DailyPatient, DailyPatientSchema } from './schema/daily-patient.schema'
 import { PatientsModule } from 'src/patients/patients.module';
 import { DoctorsModule } from 'src/doctors/doctors.module';
 import { ItemsModule } from 'src/items/items.module';
+import { HistoryAttentionsModule } from 'src/history-attentions/history-attentions.module';
 
 @Module({
   imports: [
@@ -13,8 +14,9 @@ import { ItemsModule } from 'src/items/items.module';
       { name: DailyPatient.name, schema: DailyPatientSchema },
     ]),
     PatientsModule, 
-    DoctorsModule,  
-    ItemsModule,   
+    DoctorsModule,
+    ItemsModule,
+    HistoryAttentionsModule,
   ],
   controllers: [DailyPatientsController],
   providers: [DailyPatientsService],
