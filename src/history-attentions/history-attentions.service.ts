@@ -4,12 +4,15 @@ import { Model } from 'mongoose';
 import { CreateHistoryAttentionDto } from './dto/create-history-attention.dto';
 import { UpdateHistoryAttentionDto } from './dto/update-history-attention.dto';
 import { HistoryAttention} from './entities/history-attention.schema';
+import { Patient } from 'src/patients/schema/patient.schema';
 
 @Injectable()
 export class HistoryAttentionsService {
   constructor(
     @InjectModel(HistoryAttention.name)
     private readonly historyModel: Model<HistoryAttention>,
+    @InjectModel(Patient.name)
+    private readonly patientModel: Model<Patient>,
   ) {}
 
   async create(createHistoryAttentionDto: CreateHistoryAttentionDto) {
@@ -20,6 +23,16 @@ export class HistoryAttentionsService {
   async findAll() {
     return this.historyModel.find().exec();
   }
+
+  async findByPatientId(patientId: string) {
+
+  return this.historyModel
+    .find({ patient_id: patientId })
+    .populate('patient_id', 'fid_number name lastname')
+    .populate('doctor_id', 'full_name cyclhos_name')
+    .populate('item_id', 'cyclhos_name mapped_name category')
+    .exec();
+}
 
   async findOne(id: string) {
     const doc = await this.historyModel.findById(id).exec();

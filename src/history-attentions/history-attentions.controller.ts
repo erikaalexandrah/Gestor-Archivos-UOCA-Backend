@@ -21,6 +21,11 @@ export class HistoryAttentionsController {
   findOne(@Param('id') id: string) {
     return this.historyAtttentionsService.findOne(id);
   }
+  
+  @Get('patient/:patientId')
+    findByPatientId(@Param('patientId') patientId: string) {
+      return this.historyAtttentionsService.findByPatientId(patientId);
+   }
 
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateHistoryAtttentionDto: UpdateHistoryAttentionDto) {
