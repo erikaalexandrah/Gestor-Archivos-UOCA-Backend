@@ -26,27 +26,12 @@ async function bootstrap() {
     'https://node-7s3gk9.erikahernandez.dev', // Dominio personalizado
   ];
 
-  // ✅ CORS correctamente configurado
+  // Habilitar CORS abierto: permitir todos los orígenes.
+  // Nota: esto deja la API accesible desde cualquier origen.
   app.enableCors({
-    origin: (origin, callback) => {
-      // Permite requests sin origen (como Postman, Swagger local, etc.)
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        console.warn(`❌ Bloqueado por CORS: ${origin}`);
-        callback(new Error('No autorizado por CORS'));
-      }
-    },
+    origin: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     credentials: true,
-  });
-
-  // 🚨 Middleware opcional (refuerzo de headers, no obligatorio pero útil)
-  app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,PATCH,OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    next();
   });
 
   // ⚙️ Swagger configurado para los tres entornos

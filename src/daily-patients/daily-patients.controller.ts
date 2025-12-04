@@ -9,7 +9,7 @@ import { DailyPatient } from './schema/daily-patient.schema';
 @Controller('daily-patients')
 export class DailyPatientsController {
   constructor(private readonly dailyPatientsService: DailyPatientsService) {}
-
+  
   // ✅ Crear un registro diario (verifica paciente, doctor y item)
   @Post()
   @ApiOperation({
@@ -66,7 +66,11 @@ export class DailyPatientsController {
   findAll() {
   return this.dailyPatientsService.findAll();
   }
-
+  // ✅ Listar registros diarios con archivos asociados
+  @Get('with-files')
+  async getPatientsWithFiles() {
+    return this.dailyPatientsService.findWithFiles();
+  }
   // ✅ Resumen de pacientes para atenciones del día
   @Get('summary')
   @ApiOperation({

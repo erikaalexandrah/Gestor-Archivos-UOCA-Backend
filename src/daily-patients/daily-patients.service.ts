@@ -30,6 +30,18 @@ export class DailyPatientsService {
     private readonly historyAttentionsService: HistoryAttentionsService,
 
   ) {}
+  
+  async findWithFiles() {
+    
+    return this.dailyModel
+      .find({
+        result_url: { $exists: true, $not: { $size: 0 } }, // Array no vacío
+      })
+      .populate('patient_id', 'name lastname fid_number contact_info')
+      .populate('doctor_id', 'full_name')
+      .sort({ appointment_date: -1 }) // Ordenar: más recientes primero
+      .exec();
+  }
 
   async create(dto: CreateDailyPatientDto): Promise<DailyPatient | DailyPatient[]> {
     if (!dto.patient?.fid_number || !dto.doctor?.cyclhos_name || !dto.study?.item) {

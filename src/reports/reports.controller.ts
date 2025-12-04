@@ -13,6 +13,12 @@ import * as fs from 'fs';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User } from '../auth/schema/user.schema';
+import { Post, UseInterceptors, UploadedFile, Body, BadRequestException } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname, join } from 'path';
+
+
 
 @Controller('reports')
 export class ReportsController {
@@ -199,7 +205,7 @@ export class ReportsController {
     return this.getReport(req, res);
   }
 
-  @Get('*')
+  @Get('*path')
   async getReport(@Req() req: Request, @Res() res: Response) {
     const { doctorFolder, fileName } = req.query as {
       doctorFolder?: string;
