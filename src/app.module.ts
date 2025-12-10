@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { DoctorsModule } from './doctors/doctors.module';
 import { PatientsModule } from './patients/patients.module';
@@ -12,11 +12,21 @@ import { HistoryAttentionsModule } from './history-attentions/history-attentions
 
 @Module({
   imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-    }),
+    // cargar .env y ConfigService global
+    ConfigModule.forRoot({ isGlobal: true }),
 
-    MongooseModule.forRoot(process.env.MONGODB_URI),
+    // conectar a Mongo usando la variable de entorno MONGODB_URI
+    MongooseModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        uri:
+          configService.get<string>('MONGODB_URI') ||
+          'mongodb://localhost:27017/gestor_archivos_uoca',
+        // Si necesitas opciones adicionales, añádelas aquí
+        // e.g. serverSelectionTimeoutMS: 5000
+      }),
+      inject: [ConfigService],
+    }),
 
     DoctorsModule,
     PatientsModule,

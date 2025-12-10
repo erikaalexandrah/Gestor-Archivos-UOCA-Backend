@@ -50,7 +50,8 @@ async function bootstrap() {
   // 🚀 Escucha en el puerto 3001 o el asignado por Render
   const port = process.env.PORT || 3001;
   await app.listen(port);
-
+  
+  
   console.log(`🚀 Servidor corriendo en http://localhost:${port}/api`);
   console.log(`✅ Swagger disponible en:`);
   console.log(`   • http://localhost:${port}/api`);
